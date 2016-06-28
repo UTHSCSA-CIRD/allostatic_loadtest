@@ -4,10 +4,15 @@ require("dplyr")
 require("ggplot2")
 source("helpers.R")
 
-df1 <- read_csv("allostatic load.csv", na = c("", "(null)"))
+df1 <- read_csv("allostatic load.csv", na = c("", "(null)"),locale = locale(date_format="%m/%d/%y"))
 
-# Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
+#' Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
 df1 <- df1[ , !grepl("info", names(df1))]
+#' Guess which columns are numeric
+nums<-vs(df1,'z')
+#' See which columns were guessed to be non-numeric
+setdiff(names(df1),nums)
+#' Turn character columns into factors
 df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), simplify = FALSE)
 df1$patient_num <- as.factor(df1$patient_num)
 df1[ , grepl("num", names(df1))] <- sapply(df1[ , grepl("num", names(df1))], function(x) as.numeric(x), simplify = FALSE)
