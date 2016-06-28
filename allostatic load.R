@@ -12,7 +12,9 @@ df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), s
 df1$patient_num <- as.factor(df1$patient_num)
 df1[ , grepl("num", names(df1))] <- sapply(df1[ , grepl("num", names(df1))], function(x) as.numeric(x), simplify = FALSE)
 
+#' Consider creating a new column instead, named age_at_visit_years, since that's what this is
 df1$age_at_visit_days <- df1$age_at_visit_days / 365  # Convert to years.
+#' Ditto
 df1$v017_Wght_oz_num <- df1$v017_Wght_oz_num * 0.0625 # Convert to pounds.
 
 # Produce data frame of number of visits per unique patient.
@@ -21,6 +23,8 @@ ggplot(df1.counts, aes(n)) + geom_histogram(binwidth = 5)
 
 # Checking to see if any of the units of measurement will need converting later on.
 lapply(df1[ , grepl("unit", names(df1))], FUN = unique)
+#' Or you can try...
+summary(df1[ , grepl("unit", names(df1))])
 # Watch out for:
 # $v001_Albmn_LP_1751_7_unit
 # $v001_Albmn_LP_1755_8_unit
@@ -36,11 +40,12 @@ lapply(df1[ , grepl("unit", names(df1))], FUN = unique)
 # Easy way to eyeball if any of the factor columns are "goofy." Tobacco is certainly goofy.
 sapply(df1[, vs(df1, "f")], function(x) length(levels(x)))
 
-# Put all factors with only one level in a list for removal
+#' Put all factors with only one level in a list for removal
+#' Not a good idea! Look at this: `levels(factor(c(NA,'xx')))` 
 kill_list <- names(which(sapply(df1[, vs(df1, "f")], function(x) length(levels(x)) == 1) == TRUE))
 df1 <- df1[ , !(names(df1) %in% kill_list)]
 
-
+#' 
 summary(df1[ , vs(df1, "n")])
 sapply(df1[ , vs(df1, "n")], function(x) length(unique(x)), simplify = FALSE)
 # Find numerical columns with only NA's and 1's.
