@@ -9,9 +9,10 @@ df1 <- read_csv("allostatic load.csv", na = c("", "(null)"),locale = locale(date
 #' Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
 df1 <- df1[ , !grepl("info", names(df1))]
 #' Guess which columns are numeric
-nums<-vs(df1,'z')
+nums<-na.exclude(vs(df1,'z'))
 #' See which columns were guessed to be non-numeric
 setdiff(names(df1),nums)
+df1[,nums] <- sapply(df1[,nums],as.numeric)
 #' Turn character columns into factors
 df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), simplify = FALSE)
 df1$patient_num <- as.factor(df1$patient_num)
