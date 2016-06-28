@@ -4,7 +4,7 @@ require("dplyr")
 require("ggplot2")
 source("helpers.R")
 
-df1 <- read_csv("allostatic load.csv", na = c("", "(null)"))
+df1 <- read_csv("allostatic load.csv", na = c("", "(null)"), locale = locale(date_format = "%m/%d/%y"))
 
 # Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
 df1 <- df1[ , !grepl("info", names(df1))]
