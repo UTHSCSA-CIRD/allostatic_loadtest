@@ -42,6 +42,8 @@ sapply(df1[, vs(df1, "f")], function(x) length(levels(x)))
 
 #' Put all factors with only one level in a list for removal
 #' Not a good idea! Look at this: `levels(factor(c(NA,'xx')))` 
+#' Might want to at least eyeball it first
+summary(df1[ , vs(df1, "f")])
 kill_list <- names(which(sapply(df1[, vs(df1, "f")], function(x) length(levels(x)) == 1) == TRUE))
 df1 <- df1[ , !(names(df1) %in% kill_list)]
 
