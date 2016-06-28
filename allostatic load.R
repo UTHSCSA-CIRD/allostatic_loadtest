@@ -41,7 +41,9 @@ summary(df1[ , grepl("unit", names(df1))])
 sapply(df1[, vs(df1, "f")], function(x) length(levels(x)))
 
 #' Put all factors with only one level in a list for removal
+#' 
 #' Not a good idea! Look at this: `levels(factor(c(NA,'xx')))` 
+#' 
 #' Might want to at least eyeball it first
 summary(df1[ , vs(df1, "f")])
 kill_list <- names(which(sapply(df1[, vs(df1, "f")], function(x) length(levels(x)) == 1) == TRUE))
@@ -56,7 +58,7 @@ kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x
 df1 <- df1[ , !(names(df1) %in% kill_list)]
 
 
-# What percent of variables are missing, and what percent, roughly of the total are missing.
+#' What percent of variables are missing, and what percent, roughly of the total are missing.
 sapply(df1, function(x) mean(is.na(x)))
 mean(sapply(df1, function(x) mean(is.na(x))))
 
