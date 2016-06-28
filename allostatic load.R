@@ -1,4 +1,4 @@
-
+#' Load libraries
 require("readr")
 require("dplyr")
 require("ggplot2")
@@ -45,6 +45,7 @@ sapply(df1[, vs(df1, "f")], function(x) length(levels(x)))
 #' Might want to at least eyeball it first
 summary(df1[ , vs(df1, "f")])
 kill_list <- names(which(sapply(df1[, vs(df1, "f")], function(x) length(levels(x)) == 1) == TRUE))
+# browser()
 df1 <- df1[ , !(names(df1) %in% kill_list)]
 
 #' 
