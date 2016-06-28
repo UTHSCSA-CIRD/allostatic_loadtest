@@ -46,3 +46,9 @@ vs <- function(xx
       # `option(ignorevs=c('patient_num','birth_date'))`
       ,getOption(ignorevs)));
 }
+
+guessnum <- function(xx,exclude='',returnval=F,tolerance=.11){
+  xx <- xx[!is.na(xx)&!xx%in%exclude];
+  out <- sum(is.na(as.numeric(as.character(xx))))/length(xx);
+  if(returnval) out else out <= tolerance;
+}
