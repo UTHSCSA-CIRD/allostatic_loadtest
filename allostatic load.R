@@ -79,7 +79,18 @@ levels(df1$v015_Tbc_Usg) <- gsub(",\"vf\":\"null\",\"un\":\"Packs\"",'',levels(d
 #' (mice recommends not imputing more than 5% of a column)
 #' Let's say you have more than 5% missing in a column, so imputation not recommended... but still a decent number
 #' of values. Why not set a cutoff and bin them as "beyond cutoff" vs "within cutoff or missing"?
+
+#' How to tell if they're "beyond" the cutoff? Well, see if you can come up with a function that takes a vector of
+#' numbers, and then returns the percentile each number occupies relative to all the other numbers in the vector
+#' As you found, `quantile()` tells what the cutoff values should be (as should the clinical dudes, and better, 
+#' but this is on the assumption that you're feeling impatient). The `between()` function will return a T/F
+#' for whether a value is between the second and third arguments.
+#' 
+
 sapply(df1, function(x) mean(is.na(x)))
 mean(sapply(df1, function(x) mean(is.na(x))))
 
 # write_csv(df1, "allostatic load 2.csv")
+
+#' = Next time: decide which columns to impute, which ones to bin, and which ones to throw away
+#' ...and impute the ones that you can
