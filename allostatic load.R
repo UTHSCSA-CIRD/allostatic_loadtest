@@ -21,9 +21,9 @@ df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), s
 #df1$patient_num <- as.factor(df1$patient_num)
 
 #' Consider creating a new column instead, named age_at_visit_years, since that's what this is
-df1$age_at_visit_days <- df1$age_at_visit_days / 365  # Convert to years.
+df1$age_at_visit_years <- df1$age_at_visit_days / 365  # Convert to years.
 #' Ditto
-df1$v017_Wght_oz_num <- df1$v017_Wght_oz_num * 0.0625 # Convert to pounds.
+df1$v017_Wght_lbs_num <- df1$v017_Wght_oz_num * 0.0625 # Convert to pounds.
 
 # Produce data frame of number of visits per unique patient.
 df1.counts <- count(df1, patient_num)
@@ -36,10 +36,10 @@ summary(df1[ , grepl("unit", names(df1))])
 # Watch out for:
 # $v001_Albmn_LP_1751_7_unit
 # $v001_Albmn_LP_1755_8_unit
-# $v004_rctv_prtn_1988_5_unit
+# $v004_rctv_prtn_1988_5_unit # yes, possible mismatch
 # $v005_Chlstrl_LP_2089_1_unit
 # $v006_Crtsl_LP_2143_6_unit
-# $v007_D_DMR_KUH_COMPONENT_ID_2396_unit
+# $v007_D_DMR_KUH_COMPONENT_ID_2396_unit # yes, possible mismatch
 # $v009_Dhdrpndrstrn_2191_5_unit
 # $v001_Epnphrn_LP_2232_7_unit
 # $v008_Nrpnphrn_LP_2668_2_unit
@@ -58,11 +58,12 @@ kill_list <- names(which(sapply(df1[, vs(df1, "f")], function(x) length(levels(x
 # browser()
 df1 <- df1[ , !(names(df1) %in% kill_list)]
 
-#' 
+#' Sure, this is fine for now. Might want to kill them based on low count rather than uniqueness, though
+#' Could in principle have a well-populated column that only ever has one of two possible values  
 summary(df1[ , vs(df1, "n")])
 sapply(df1[ , vs(df1, "n")], function(x) length(unique(x)), simplify = FALSE)
 # Find numerical columns with only NA's and 1's.
-kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x)) == 2))) 
+kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x)) <= 2))) 
 df1 <- df1[ , !(names(df1) %in% kill_list)]
 
 
