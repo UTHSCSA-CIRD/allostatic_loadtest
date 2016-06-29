@@ -12,11 +12,13 @@ df1 <- df1[ , !grepl("info", names(df1))]
 nums<-na.exclude(vs(df1,'z'))
 #' See which columns were guessed to be non-numeric
 setdiff(names(df1),nums)
-df1[,nums] <- sapply(df1[,nums],as.numeric)
-#' Turn character columns into factors
+#' In this case the `for` loop is faster
+#df1[,nums] <- sapply(df1[,nums],as.numeric)
+for(ii in nums) df1[[ii]] <- as.numeric(df1[[ii]])
+#' Turn remaining character columns into factors
 df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), simplify = FALSE)
-df1$patient_num <- as.factor(df1$patient_num)
-df1[ , grepl("num", names(df1))] <- sapply(df1[ , grepl("num", names(df1))], function(x) as.numeric(x), simplify = FALSE)
+#' No need for that. Integers are usually more efficient to manipulate
+#df1$patient_num <- as.factor(df1$patient_num)
 
 #' Consider creating a new column instead, named age_at_visit_years, since that's what this is
 df1$age_at_visit_days <- df1$age_at_visit_days / 365  # Convert to years.
