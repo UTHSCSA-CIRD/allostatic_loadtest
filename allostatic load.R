@@ -66,8 +66,19 @@ sapply(df1[ , vs(df1, "n")], function(x) length(unique(x)), simplify = FALSE)
 kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x)) <= 2))) 
 df1 <- df1[ , !(names(df1) %in% kill_list)]
 
+#' Collapse the smoking variables
+levels(df1$v015_Tbc_Usg) <- gsub(",\"ix\":\"[0-9]{1,}\"",'',levels(df1$v015_Tbc_Usg));
+#' Shorten the remaining variable name levels
+levels(df1$v015_Tbc_Usg) <- gsub(",\"vf\":\"null\",\"un\":\"Packs\"",'',levels(df1$v015_Tbc_Usg))
+
+#' You can collapse the `v000_Mlgnt_prst, v000_Mlgnt_prst_inactive, v004_gstrsphgl, v004_gstrsphgl_inactive`
+#' into T/F for now... can always change this script later if the type of diagnosis turns out to be important,
+#' and as T/F values, they will be much easier to analyze
 
 #' What percent of variables are missing, and what percent, roughly of the total are missing.
+#' (mice recommends not imputing more than 5% of a column)
+#' Let's say you have more than 5% missing in a column, so imputation not recommended... but still a decent number
+#' of values. Why not set a cutoff and bin them as "beyond cutoff" vs "within cutoff or missing"?
 sapply(df1, function(x) mean(is.na(x)))
 mean(sapply(df1, function(x) mean(is.na(x))))
 
