@@ -91,3 +91,6 @@ sapply(df1, function(x) mean(is.na(x)))
 mean(sapply(df1, function(x) mean(is.na(x))))
 
 # write_csv(df1, "allostatic load 2.csv")
+
+#' = Next time: decide which columns to impute, which ones to bin, and which ones to throw away
+#' ...and impute the ones that you can
