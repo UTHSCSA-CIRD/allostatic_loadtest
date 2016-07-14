@@ -52,3 +52,12 @@ guessnum <- function(xx,exclude='',returnval=F,tolerance=.11){
   out <- sum(is.na(as.numeric(as.character(xx))))/length(xx);
   if(returnval) out else out <= tolerance;
 }
+
+snu <- function(teststring = "Crtsl", df =  df1) {
+  # Take a variable name summarize the number and unit columns, one on top of the other
+  return(
+    list(summary(df[, grepl(paste0(teststring, ".*num"), names(df))])
+        ,summary(df[, grepl(paste0(teststring, ".*unit"), names(df))])
+    )
+  )
+}

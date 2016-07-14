@@ -7,7 +7,7 @@ source("helpers.R")
 df1 <- read_csv("allostatic load.csv", na = c("", "(null)"),locale = locale(date_format="%m/%d/%y"))
 
 #' Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
-df1 <- df1[ , !grepl("info", names(df1))]
+# df1 <- df1[ , !grepl("info", names(df1))]
 #' Guess which columns are numeric
 nums<-na.exclude(vs(df1,'z'))
 #' See which columns were guessed to be non-numeric
@@ -24,6 +24,8 @@ df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), s
 df1$age_at_visit_years <- df1$age_at_visit_days / 365  # Convert to years.
 #' Ditto
 df1$v017_Wght_lbs_num <- df1$v017_Wght_oz_num * 0.0625 # Convert to pounds.
+df1$age_at_visit_days <- NULL
+df1$v017_Wght_oz_num <- NULL
 
 # Produce data frame of number of visits per unique patient.
 df1.counts <- count(df1, patient_num)
@@ -67,6 +69,7 @@ kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x
 df1 <- df1[ , !(names(df1) %in% kill_list)]
 
 #' Collapse the smoking variables
+levels(df1$v015_Tbc_Usg) <- gsub("KUMC_",'',levels(df1$v015_Tbc_Usg));
 levels(df1$v015_Tbc_Usg) <- gsub(",\"ix\":\"[0-9]{1,}\"",'',levels(df1$v015_Tbc_Usg));
 #' Shorten the remaining variable name levels
 levels(df1$v015_Tbc_Usg) <- gsub(",\"vf\":\"null\",\"un\":\"Packs\"",'',levels(df1$v015_Tbc_Usg))
@@ -94,3 +97,29 @@ mean(sapply(df1, function(x) mean(is.na(x))))
 
 #' = Next time: decide which columns to impute, which ones to bin, and which ones to throw away
 #' ...and impute the ones that you can
+
+df1$v000_Mlgnt_prst_inactive <- ifelse(is.na(df1$v000_Mlgnt_prst_inactive), 0, 1)
+df1$v000_Mlgnt_prst          <- ifelse(is.na(df1$v000_Mlgnt_prst), 0, 1)
+
+df1$v004_gstrsphgl          <- ifelse(is.na(df1$v004_gstrsphgl), 0, 1)
+df1$v004_gstrsphgl_inactive <- ifelse(is.na(df1$v004_gstrsphgl_inactive), 0, 1)
+
+
+snu <- function(teststring = "Crtsl", df =  df1) {
+  # Take a variable name summarize the number and unit columns, one on top of the other
+  return(
+    list(summary(df[, grepl(paste0(teststring, ".*num"), names(df))])
+        ,summary(df[, grepl(paste0(teststring, ".*unit"), names(df))])
+    )
+  )
+}
+
+
+df1 %>% group_by(patient_num) %>% summarise(patient_visits = n())
+temp1 <- df1 %>% group_by(patient_num) %>% summarise(patient_visits = n())
+temp2 <- df1 %>% group_by(patient_num) %>% summarise(albumin_data_percent = 1 - mean(is.na(v001_Albmn_LP_1751_7_num)))
+ggplot(temp2, aes(albumin_data_percent)) + geom_histogram(binwidth = .05)
+
+
+rndm_50_sample <- sample_frac(df1.counts, 0.5)
+rndm_50_sample <- rndm_50_sample$patient_num
