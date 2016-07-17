@@ -4,12 +4,12 @@ require("dplyr")
 require("ggplot2")
 source("helpers.R")
 
-df1 <- read_csv("allostatic load.csv", na = c("", "(null)"),locale = locale(date_format="%m/%d/%y"))
+df1 <- read_csv("allo_prakash.csv", na = c("", "(null)"),locale = locale(date_format="%m/%d/%y"))
 
 #' Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
 # df1 <- df1[ , !grepl("info", names(df1))]
 #' Guess which columns are numeric
-nums<-na.exclude(vs(df1,'z'))
+nums<-na.exclude(vs(df1,'z'))n
 #' See which columns were guessed to be non-numeric
 setdiff(names(df1),nums)
 #' In this case the `for` loop is faster
@@ -98,28 +98,22 @@ mean(sapply(df1, function(x) mean(is.na(x))))
 #' = Next time: decide which columns to impute, which ones to bin, and which ones to throw away
 #' ...and impute the ones that you can
 
-df1$v000_Mlgnt_prst_inactive <- ifelse(is.na(df1$v000_Mlgnt_prst_inactive), 0, 1)
-df1$v000_Mlgnt_prst          <- ifelse(is.na(df1$v000_Mlgnt_prst), 0, 1)
+df1$v003_Mlgnt_prst_inactive <- ifelse(is.na(df1$v003_Mlgnt_prst_inactive), 0, 1)
+df1$v003_Mlgnt_prst          <- ifelse(is.na(df1$v003_Mlgnt_prst), 0, 1)
 
-df1$v004_gstrsphgl          <- ifelse(is.na(df1$v004_gstrsphgl), 0, 1)
-df1$v004_gstrsphgl_inactive <- ifelse(is.na(df1$v004_gstrsphgl_inactive), 0, 1)
-
-
-snu <- function(teststring = "Crtsl", df =  df1) {
-  # Take a variable name summarize the number and unit columns, one on top of the other
-  return(
-    list(summary(df[, grepl(paste0(teststring, ".*num"), names(df))])
-        ,summary(df[, grepl(paste0(teststring, ".*unit"), names(df))])
-    )
-  )
-}
+df1$v024_gstrsphgl          <- ifelse(is.na(df1$v024_gstrsphgl), 0, 1)
+df1$v024_gstrsphgl_inactive <- ifelse(is.na(df1$v024_gstrsphgl_inactive), 0, 1)
 
 
 df1 %>% group_by(patient_num) %>% summarise(patient_visits = n())
 temp1 <- df1 %>% group_by(patient_num) %>% summarise(patient_visits = n())
-temp2 <- df1 %>% group_by(patient_num) %>% summarise(albumin_data_percent = 1 - mean(is.na(v001_Albmn_LP_1751_7_num)))
+temp2 <- df1 %>% group_by(patient_num) %>% summarise(albumin_data_percent = 1 - mean(is.na(v004_Albmn_LP_1751_7_num)))
 ggplot(temp2, aes(albumin_data_percent)) + geom_histogram(binwidth = .05)
 
 
 rndm_50_sample <- sample_frac(df1.counts, 0.5)
 rndm_50_sample <- rndm_50_sample$patient_num
+
+df1$v004_Albmn_LP_1755_8_num <- NULL
+df1$v004_Albmn_LP_1755_8_unit <- NULL
+df1$v004_Albmn_LP_1755_8_info <- NULL
