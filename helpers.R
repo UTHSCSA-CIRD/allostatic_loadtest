@@ -83,7 +83,7 @@ correct <- function(xx, range, conv){
    xx2[outliers != 1] <- NA
    choices <-matrix(holder*holder2, ncol = length(conv))
    for (ii in 1:length(xx2)) {
-     for(iii in 1:(length(conv) - 1)) {
+     for(iii in 1:length(conv)) {
        if (is.na(xx2[ii]) == TRUE) {
          if(is.na(choices[ii, iii]) == FALSE) xx2[ii] <- choices[ii, iii]
        }
@@ -91,4 +91,5 @@ correct <- function(xx, range, conv){
      }
    return(xx2)   
 }
+
 
