@@ -61,3 +61,34 @@ snu <- function(teststring = "Crtsl", df =  df1) {
     )
   )
 }
+
+
+correct <- function(xx, range, conv){
+# xx:              numeric vector of input data
+# range:        biologically plausible range for that vector
+# conv:          vector of unit conversion factors
+
+   outliers <- findInterval(xx,range);
+   # browser();
+   # those below the range will be 0, those within, 1, and those above will be 2
+   # for each value in xx whose corresponding value in outliers is not 1
+   # try multiplying by conv and stop with the first one that gives a value within the range
+   # replace the original element of xx with that value and move on to the next one
+   # if none of them cause that element of xx fall wthin the normal range, 
+   # replace that element in xx with NA
+   # return(xx);
+   holder <- xx %*%  t(conv)
+   holder2 <- matrix(ifelse(findInterval(holder, range) != 1, NA, 1), ncol = length(conv))
+   xx2 <- xx
+   xx2[outliers != 1] <- NA
+   choices <-matrix(holder*holder2, ncol = length(conv))
+   for (ii in 1:length(xx2)) {
+     for(iii in 1:(length(conv) - 1)) {
+       if (is.na(xx2[ii]) == TRUE) {
+         if(is.na(choices[ii, iii]) == FALSE) xx2[ii] <- choices[ii, iii]
+       }
+      }
+     }
+   return(xx2)   
+}
+
