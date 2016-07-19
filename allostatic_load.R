@@ -2,12 +2,15 @@
 require("readr")
 require("dplyr")
 require("ggplot2")
-source("helpers.R")
+require("jsonlite");
+source("helpers.R");
 
 df1 <- read_csv("allo_prakash.csv", na = c("", "(null)"),locale = locale(date_format="%m/%d/%y"))
 
 #' Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
 df1 <- df1[ , !grepl("info", names(df1))]
+#' Fix the tobacco used years variable (takes a while)
+df1$Years_Tobacco_num<-apply(df1[,'v040_Yrs_Tbc_Usg',drop=F],1,function(xx) if(is.null(xx)||is.na(xx)) NA else lastNonMissing(fromJSON(paste0('[',xx,']'))$nv))
 #' Guess which columns are numeric
 nums<-na.exclude(vs(df1,'z'))
 #' See which columns were guessed to be non-numeric
