@@ -25,13 +25,25 @@ df1$age_at_visit_years <- df1$age_at_visit_days / 365  # Convert to years.
 #' Ditto
 df1$v039_Wght_lbs_num <- df1$v039_Wght_oz_num * 0.0625 # Convert to pounds.
 df1$age_at_visit_days <- NULL
-df1$v039_Wght_oz_num <- NULL
+df1$v017_Wght_oz_num <- NULL
+
+#' ###Stop the presses. The majority of visits are not physical encounters between patient and doc!
+#' They seem to be lab visits. How do we detect the 'real' ones? Perhaps by the presence of vitals?
+#real_visit_vars <- c('v039_Wght_oz_num','v039_Wght_lbs_numv033_Pls_num
+#v011_Dstlc_Prsr_num
+#v005_Bd_Ms_Indx_num
+#v023_Hght_cm_num
+#v018_Tmprtr_F_num
+#v034_Rsprtn_Rt_num
+
 
 # Produce data frame of number of visits per unique patient.
 df1.counts <- count(df1, patient_num)
 ggplot(df1.counts, aes(n)) + geom_histogram(binwidth = 5)
 
 # Checking to see if any of the units of measurement will need converting later on.
+lapply(df1[ , grepl("unit", names(df1))], FUN = unique)
+#' Or you can try...
 summary(df1[ , grepl("unit", names(df1))])
 # Watch out for:
 # $v001_Albmn_LP_1751_7_unit
@@ -47,6 +59,16 @@ summary(df1[ , grepl("unit", names(df1))])
 
 # Easy way to eyeball if any of the factor columns are "goofy." Tobacco is certainly goofy.
 sapply(df1[, vs(df1, "f")], function(x) length(levels(x)))
+#' Let's look at the Tobacco levels in more detail, after getting rid of the instance numbers
+#' that cause them to be spuriously unique
+View(table(gsub('\"cc\":\"GENERIC_KUMC_TOBACCO_USED_YEARS\",\"ix\":\"[0-9]{1,}\",','',levels(df1$v040_Yrs_Tbc_Usg))));
+#' Down to 168 distinct levels without the instance numbers. Now let's try in addition getting rid of the repetitive null entries...
+View(table(gsub('\\{\"vf\":\"null\",\"un\":\"Packs\"\\},','',gsub('\"cc\":\"GENERIC_KUMC_TOBACCO_USED_YEARS\",\"ix\":\"[0-9]{1,}\",','',levels(df1$v040_Yrs_Tbc_Usg)))))
+#' ...and of some more, partially null entries
+View(table(gsub(',\"vf\":\"null\",\"un\":\"Packs\"\\}','',gsub('\\{\"vf\":\"null\",\"un\":\"Packs\"\\},','',gsub('\"cc\":\"GENERIC_KUMC_TOBACCO_USED_YEARS\",\"ix\":\"[0-9]{1,}\",','',levels(df1$v040_Yrs_Tbc_Usg))))))
+#' Looks like the only value-flag (`"vf"`) values were `"null"` and the only unit (`"un"`) values were `"Packs"`. This means we can
+#' just convert these to character, extract the numeric values of the `"nv"` field, and call it a day!
+
 
 #' Put all factors with only one level in a list for removal
 #' 
@@ -64,8 +86,13 @@ summary(df1[ , vs(df1, "n")])
 sapply(df1[ , vs(df1, "n")], function(x) length(unique(x)), simplify = FALSE)
 # Find numerical columns with only NA's and 1's.
 kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x)) <= 2))) 
-df1 <- df1[ , !(names(df1) %in% kill_list)]
+#df1 <- df1[ , !(names(df1) %in% kill_list)]
 
+#' Collapse the smoking variables
+#levels(df1$v015_Tbc_Usg) <- gsub("KUMC_",'',levels(df1$v015_Tbc_Usg));
+#levels(df1$v015_Tbc_Usg) <- gsub(",\"ix\":\"[0-9]{1,}\"",'',levels(df1$v015_Tbc_Usg));
+#' Shorten the remaining variable name levels
+#levels(df1$v015_Tbc_Usg) <- gsub(",\"vf\":\"null\",\"un\":\"Packs\"",'',levels(df1$v015_Tbc_Usg))
 
 #' You can collapse the `v000_Mlgnt_prst, v000_Mlgnt_prst_inactive, v004_gstrsphgl, v004_gstrsphgl_inactive`
 #' into T/F for now... can always change this script later if the type of diagnosis turns out to be important,
@@ -83,7 +110,7 @@ df1 <- df1[ , !(names(df1) %in% kill_list)]
 #' for whether a value is between the second and third arguments.
 #' 
 
-sapply(df1, function(x) mean(is.na(x)))
+View(cbind(sort(sapply(df1, function(x) mean(is.na(x))))))
 mean(sapply(df1, function(x) mean(is.na(x))))
 
 # write_csv(df1, "allostatic load 2.csv")
@@ -104,7 +131,7 @@ temp2 <- df1 %>% group_by(patient_num) %>% summarise(albumin_data_percent = 1 - 
 ggplot(temp2, aes(albumin_data_percent)) + geom_histogram(binwidth = .05)
 
 
-summrndm_50_sample <- sample_frac(df1.counts, 0.5)
+rndm_50_sample <- sample_frac(df1.counts, 0.5)
 rndm_50_sample <- rndm_50_sample$patient_num
 
 df1$v004_Albmn_LP_1755_8_num <- NULL
