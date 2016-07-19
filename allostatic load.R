@@ -7,9 +7,9 @@ source("helpers.R")
 df1 <- read_csv("allo_prakash.csv", na = c("", "(null)"),locale = locale(date_format="%m/%d/%y"))
 
 #' Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
-# df1 <- df1[ , !grepl("info", names(df1))]
+df1 <- df1[ , !grepl("info", names(df1))]
 #' Guess which columns are numeric
-nums<-na.exclude(vs(df1,'z'))n
+nums<-na.exclude(vs(df1,'z'))
 #' See which columns were guessed to be non-numeric
 setdiff(names(df1),nums)
 #' In this case the `for` loop is faster
@@ -23,17 +23,15 @@ df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), s
 #' Consider creating a new column instead, named age_at_visit_years, since that's what this is
 df1$age_at_visit_years <- df1$age_at_visit_days / 365  # Convert to years.
 #' Ditto
-df1$v017_Wght_lbs_num <- df1$v017_Wght_oz_num * 0.0625 # Convert to pounds.
+df1$v039_Wght_lbs_num <- df1$v039_Wght_oz_num * 0.0625 # Convert to pounds.
 df1$age_at_visit_days <- NULL
-df1$v017_Wght_oz_num <- NULL
+df1$v039_Wght_oz_num <- NULL
 
 # Produce data frame of number of visits per unique patient.
 df1.counts <- count(df1, patient_num)
 ggplot(df1.counts, aes(n)) + geom_histogram(binwidth = 5)
 
 # Checking to see if any of the units of measurement will need converting later on.
-lapply(df1[ , grepl("unit", names(df1))], FUN = unique)
-#' Or you can try...
 summary(df1[ , grepl("unit", names(df1))])
 # Watch out for:
 # $v001_Albmn_LP_1751_7_unit
@@ -68,11 +66,6 @@ sapply(df1[ , vs(df1, "n")], function(x) length(unique(x)), simplify = FALSE)
 kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x)) <= 2))) 
 df1 <- df1[ , !(names(df1) %in% kill_list)]
 
-#' Collapse the smoking variables
-levels(df1$v015_Tbc_Usg) <- gsub("KUMC_",'',levels(df1$v015_Tbc_Usg));
-levels(df1$v015_Tbc_Usg) <- gsub(",\"ix\":\"[0-9]{1,}\"",'',levels(df1$v015_Tbc_Usg));
-#' Shorten the remaining variable name levels
-levels(df1$v015_Tbc_Usg) <- gsub(",\"vf\":\"null\",\"un\":\"Packs\"",'',levels(df1$v015_Tbc_Usg))
 
 #' You can collapse the `v000_Mlgnt_prst, v000_Mlgnt_prst_inactive, v004_gstrsphgl, v004_gstrsphgl_inactive`
 #' into T/F for now... can always change this script later if the type of diagnosis turns out to be important,
@@ -111,9 +104,14 @@ temp2 <- df1 %>% group_by(patient_num) %>% summarise(albumin_data_percent = 1 - 
 ggplot(temp2, aes(albumin_data_percent)) + geom_histogram(binwidth = .05)
 
 
-rndm_50_sample <- sample_frac(df1.counts, 0.5)
+summrndm_50_sample <- sample_frac(df1.counts, 0.5)
 rndm_50_sample <- rndm_50_sample$patient_num
 
 df1$v004_Albmn_LP_1755_8_num <- NULL
 df1$v004_Albmn_LP_1755_8_unit <- NULL
 df1$v004_Albmn_LP_1755_8_info <- NULL
+#
+#
+#
+#
+#
