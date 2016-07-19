@@ -9,7 +9,7 @@ df1 <- read_csv("allo_prakash.csv", na = c("", "(null)"),locale = locale(date_fo
 #' Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
 # df1 <- df1[ , !grepl("info", names(df1))]
 #' Guess which columns are numeric
-nums<-na.exclude(vs(df1,'z'))n
+nums<-na.exclude(vs(df1,'z'))
 #' See which columns were guessed to be non-numeric
 setdiff(names(df1),nums)
 #' In this case the `for` loop is faster
