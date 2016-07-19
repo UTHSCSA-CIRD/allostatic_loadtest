@@ -7,7 +7,7 @@ source("helpers.R")
 df1 <- read_csv("allo_prakash.csv", na = c("", "(null)"),locale = locale(date_format="%m/%d/%y"))
 
 #' Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
-# df1 <- df1[ , !grepl("info", names(df1))]
+df1 <- df1[ , !grepl("info", names(df1))]
 #' Guess which columns are numeric
 nums<-na.exclude(vs(df1,'z'))
 #' See which columns were guessed to be non-numeric
@@ -23,7 +23,7 @@ df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), s
 #' Consider creating a new column instead, named age_at_visit_years, since that's what this is
 df1$age_at_visit_years <- df1$age_at_visit_days / 365  # Convert to years.
 #' Ditto
-df1$v017_Wght_lbs_num <- df1$v017_Wght_oz_num * 0.0625 # Convert to pounds.
+df1$v039_Wght_lbs_num <- df1$v039_Wght_oz_num * 0.0625 # Convert to pounds.
 df1$age_at_visit_days <- NULL
 df1$v017_Wght_oz_num <- NULL
 
@@ -49,6 +49,16 @@ summary(df1[ , grepl("unit", names(df1))])
 
 # Easy way to eyeball if any of the factor columns are "goofy." Tobacco is certainly goofy.
 sapply(df1[, vs(df1, "f")], function(x) length(levels(x)))
+#' Let's look at the Tobacco levels in more detail, after getting rid of the instance numbers
+#' that cause them to be spuriously unique
+View(table(gsub('\"cc\":\"GENERIC_KUMC_TOBACCO_USED_YEARS\",\"ix\":\"[0-9]{1,}\",','',levels(df1$v040_Yrs_Tbc_Usg))));
+#' Down to 168 distinct levels without the instance numbers. Now let's try in addition getting rid of the repetitive null entries...
+View(table(gsub('\\{\"vf\":\"null\",\"un\":\"Packs\"\\},','',gsub('\"cc\":\"GENERIC_KUMC_TOBACCO_USED_YEARS\",\"ix\":\"[0-9]{1,}\",','',levels(df1$v040_Yrs_Tbc_Usg)))))
+#' ...and of some more, partially null entries
+View(table(gsub(',\"vf\":\"null\",\"un\":\"Packs\"\\}','',gsub('\\{\"vf\":\"null\",\"un\":\"Packs\"\\},','',gsub('\"cc\":\"GENERIC_KUMC_TOBACCO_USED_YEARS\",\"ix\":\"[0-9]{1,}\",','',levels(df1$v040_Yrs_Tbc_Usg))))))
+#' Looks like the only value-flag (`"vf"`) values were `"null"` and the only unit (`"un"`) values were `"Packs"`. This means we can
+#' just convert these to character, extract the numeric values of the `"nv"` field, and call it a day!
+
 
 #' Put all factors with only one level in a list for removal
 #' 
