@@ -27,6 +27,16 @@ df1$v039_Wght_lbs_num <- df1$v039_Wght_oz_num * 0.0625 # Convert to pounds.
 df1$age_at_visit_days <- NULL
 df1$v017_Wght_oz_num <- NULL
 
+#' ###Stop the presses. The majority of visits are not physical encounters between patient and doc!
+#' They seem to be lab visits. How do we detect the 'real' ones? Perhaps by the presence of vitals?
+#real_visit_vars <- c('v039_Wght_oz_num','v039_Wght_lbs_numv033_Pls_num
+#v011_Dstlc_Prsr_num
+#v005_Bd_Ms_Indx_num
+#v023_Hght_cm_num
+#v018_Tmprtr_F_num
+#v034_Rsprtn_Rt_num
+
+
 # Produce data frame of number of visits per unique patient.
 df1.counts <- count(df1, patient_num)
 ggplot(df1.counts, aes(n)) + geom_histogram(binwidth = 5)
@@ -76,13 +86,13 @@ summary(df1[ , vs(df1, "n")])
 sapply(df1[ , vs(df1, "n")], function(x) length(unique(x)), simplify = FALSE)
 # Find numerical columns with only NA's and 1's.
 kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x)) <= 2))) 
-df1 <- df1[ , !(names(df1) %in% kill_list)]
+#df1 <- df1[ , !(names(df1) %in% kill_list)]
 
 #' Collapse the smoking variables
-levels(df1$v015_Tbc_Usg) <- gsub("KUMC_",'',levels(df1$v015_Tbc_Usg));
-levels(df1$v015_Tbc_Usg) <- gsub(",\"ix\":\"[0-9]{1,}\"",'',levels(df1$v015_Tbc_Usg));
+#levels(df1$v015_Tbc_Usg) <- gsub("KUMC_",'',levels(df1$v015_Tbc_Usg));
+#levels(df1$v015_Tbc_Usg) <- gsub(",\"ix\":\"[0-9]{1,}\"",'',levels(df1$v015_Tbc_Usg));
 #' Shorten the remaining variable name levels
-levels(df1$v015_Tbc_Usg) <- gsub(",\"vf\":\"null\",\"un\":\"Packs\"",'',levels(df1$v015_Tbc_Usg))
+#levels(df1$v015_Tbc_Usg) <- gsub(",\"vf\":\"null\",\"un\":\"Packs\"",'',levels(df1$v015_Tbc_Usg))
 
 #' You can collapse the `v000_Mlgnt_prst, v000_Mlgnt_prst_inactive, v004_gstrsphgl, v004_gstrsphgl_inactive`
 #' into T/F for now... can always change this script later if the type of diagnosis turns out to be important,
@@ -100,7 +110,7 @@ levels(df1$v015_Tbc_Usg) <- gsub(",\"vf\":\"null\",\"un\":\"Packs\"",'',levels(d
 #' for whether a value is between the second and third arguments.
 #' 
 
-sapply(df1, function(x) mean(is.na(x)))
+View(cbind(sort(sapply(df1, function(x) mean(is.na(x))))))
 mean(sapply(df1, function(x) mean(is.na(x))))
 
 # write_csv(df1, "allostatic load 2.csv")
