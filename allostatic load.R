@@ -8,49 +8,58 @@ df1 <- read_csv("allo_prakash.csv", na = c("", "(null)"),locale = locale(date_fo
 
 #' Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
 df1 <- df1[ , !grepl("info", names(df1))]
-#' Guess which columns are numeric
+#' Guess which columns are numeric, See which columns were guessed to be non-numeric
 nums<-na.exclude(vs(df1,'z'))
-#' See which columns were guessed to be non-numeric
 setdiff(names(df1),nums)
 #' In this case the `for` loop is faster
-#df1[,nums] <- sapply(df1[,nums],as.numeric)
-for(ii in nums) df1[[ii]] <- as.numeric(df1[[ii]])
+for(ii in nums) df1[[ii]] <- as.numeric(df1[[ii]]); rm(ii, nums)
 #' Turn remaining character columns into factors
 df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), simplify = FALSE)
-#' No need for that. Integers are usually more efficient to manipulate
-#df1$patient_num <- as.factor(df1$patient_num)
+
 
 #' Consider creating a new column instead, named age_at_visit_years, since that's what this is
 df1$age_at_visit_years <- df1$age_at_visit_days / 365  # Convert to years.
-#' Ditto
 df1$v039_Wght_lbs_num <- df1$v039_Wght_oz_num * 0.0625 # Convert to pounds.
-df1$age_at_visit_days <- NULL
-df1$v017_Wght_oz_num <- NULL
+df1$age_at_visit_days               <- NULL
+df1$v017_Wght_oz_num                <- NULL
+df1$v004_Albmn_LP_1755_8_num        <- NULL
+df1$v004_Albmn_LP_1755_8_unit       <- NULL
+df1$v004_Albmn_LP_1755_8_info       <- NULL
+df1[, grepl("2089_1", names(df1))]  <- NULL
+df1[, grepl("18262_6", names(df1))] <- NULL
+df1[, grepl("2145_1", names(df1))]  <- NULL
+df1[, grepl("2147_7", names(df1))]  <- NULL
+df1[, grepl("9812_9", names(df1))]  <- NULL
+df1[, grepl("9813_7", names(df1))]  <- NULL
+df1[, grepl("14338_8", names(df1))] <- NULL
+df1[, grepl("1746_7", names(df1))]  <- NULL
+df1[, grepl("1759_0", names(df1))]  <- NULL
+df1[, grepl("2862_1", names(df1))]  <- NULL
+df1[, grepl("2232_7", names(df1))]  <- NULL
+df1[, grepl("2347_3", names(df1))]  <- NULL
+df1[, grepl("2348_1", names(df1))]  <- NULL
+df1[, grepl("27353_2", names(df1))] <- NULL
+df1[, grepl("13782_8", names(df1))] <- NULL
+df1[, grepl("2668_2", names(df1))]  <- NULL
+df1[, grepl("30522_7", names(df1))] <- NULL
+df1[, grepl("35741_8", names(df1))] <- NULL
+
 
 #' ###Stop the presses. The majority of visits are not physical encounters between patient and doc!
 #' They seem to be lab visits. How do we detect the 'real' ones? Perhaps by the presence of vitals?
 real_visit_vars <- c('v039_Wght_lbs_num', 'v033_Pls_num', 'v011_Dstlc_Prsr_num', 'v005_Bd_Ms_Indx_num', 'v023_Hght_cm_num', 'v018_Tmprtr_F_num', 'v034_Rsprtn_Rt_num')
-df1$visit_indicator <- apply(df1[, real_visit_vars], 1, function(x) !all(is.na(x)))
+df1$visit_indicator <- apply(df1[, real_visit_vars], 1, function(x) !all(is.na(x))); rm(real_visit_vars)
 df1$cumm_sum <- cumsum(df1$visit_indicator)
+
 
 # Produce data frame of number of visits per unique patient.
 df1.counts <- count(df1, patient_num)
 ggplot(df1.counts, aes(n)) + geom_histogram(binwidth = 5)
 
+
 # Checking to see if any of the units of measurement will need converting later on.
-lapply(df1[ , grepl("unit", names(df1))], FUN = unique)
-#' Or you can try...
+# Watch out for rctv, crtsl, dhdrpndrstrn, and DMR.
 summary(df1[ , grepl("unit", names(df1))])
-# Watch out for:
-# $v001_Albmn_LP_1751_7_unit
-# $v001_Albmn_LP_1755_8_unit
-# $v004_rctv_prtn_1988_5_unit # yes, possible mismatch
-# $v005_Chlstrl_LP_2089_1_unit
-# $v006_Crtsl_LP_2143_6_unit
-# $v007_D_DMR_KUH_COMPONENT_ID_2396_unit # yes, possible mismatch
-# $v009_Dhdrpndrstrn_2191_5_unit
-# $v001_Epnphrn_LP_2232_7_unit
-# $v008_Nrpnphrn_LP_2668_2_unit
 
 
 # Easy way to eyeball if any of the factor columns are "goofy." Tobacco is certainly goofy.
@@ -75,7 +84,6 @@ summary(df1[ , vs(df1, "f")])
 kill_list <- names(which(sapply(df1[, vs(df1, "f")], function(x) length(levels(x)) == 1) == TRUE))
 # browser()
 df1 <- df1[ , !(names(df1) %in% kill_list)]
-
 #' Sure, this is fine for now. Might want to kill them based on low count rather than uniqueness, though
 #' Could in principle have a well-populated column that only ever has one of two possible values  
 summary(df1[ , vs(df1, "n")])
@@ -83,6 +91,7 @@ sapply(df1[ , vs(df1, "n")], function(x) length(unique(x)), simplify = FALSE)
 # Find numerical columns with only NA's and 1's.
 kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x)) <= 2))) 
 #df1 <- df1[ , !(names(df1) %in% kill_list)]
+
 
 #' Collapse the smoking variables
 #levels(df1$v015_Tbc_Usg) <- gsub("KUMC_",'',levels(df1$v015_Tbc_Usg));
@@ -130,11 +139,33 @@ ggplot(temp2, aes(albumin_data_percent)) + geom_histogram(binwidth = .05)
 rndm_50_sample <- sample_frac(df1.counts, 0.5)
 rndm_50_sample <- rndm_50_sample$patient_num
 
-df1$v004_Albmn_LP_1755_8_num <- NULL
-df1$v004_Albmn_LP_1755_8_unit <- NULL
-df1$v004_Albmn_LP_1755_8_info <- NULL
-#
-#
-#
-#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #

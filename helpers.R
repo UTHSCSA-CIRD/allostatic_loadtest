@@ -93,3 +93,4 @@ correct <- function(xx, range, conv){
 }
 
 
+lastNonMissing <- function(xx) if(all(is.na(xx))) return(NA) else return(last(na.omit(xx)));
