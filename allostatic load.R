@@ -50,7 +50,42 @@ df1[, grepl("35741_8", names(df1))] <- NULL
 real_visit_vars <- c('v039_Wght_lbs_num', 'v033_Pls_num', 'v011_Dstlc_Prsr_num', 'v005_Bd_Ms_Indx_num', 'v023_Hght_cm_num', 'v018_Tmprtr_F_num', 'v034_Rsprtn_Rt_num')
 df1$visit_indicator <- apply(df1[, real_visit_vars], 1, function(x) !all(is.na(x))); rm(real_visit_vars)
 df1$cumm_sum <- cumsum(df1$visit_indicator)
+df1$cumm_sum <- c(0,df1$cumm_sum)[1:nrow(df1)]
+df1$unique_string <- paste(df1$patient_num, df1$cumm_sum)
 
+firstNonNA <- apply(df1,2,function(xx) min(which(!is.na(xx))))
+df1[22351, ]$unique_string
+df1_temp <- df1[df1$unique_string == "75602 4187", ]
+df1_temp_out <- data.frame(lapply(df1_temp,lastNonMissing))
+
+###########################################################
+
+df3<-subset(df1,FALSE)
+df3[1:length(unique(df1$unique_string)), 1:66] <- NA
+df1.unique <- unique(df1$unique_string)
+
+system.time(
+#for(ii in 1:length(df1.unique$unique_string)) {
+for(ii in 1:100) {
+    cat('.') 
+  df3[ii,] <- data.frame(lapply(df1[df1$unique_string == df1.unique[ii], ], lastNonMissing))
+}
+)
+
+enableJIT(3)
+df3<-subset(df1,FALSE)
+df3[1:length(unique(df1$unique_string)), 1:66] <- NA
+df1.unique <- unique(df1$unique_string)
+
+system.time(
+#for(ii in 1:length(df1.unique$unique_string)) {
+for(ii in 1:100) {
+    #cat('.') 
+  df3[ii,] <- data.frame(lapply(df1[df1$unique_string == df1.unique[ii], ], lastNonMissing))
+}
+)
+
+############################################################################################
 
 # Produce data frame of number of visits per unique patient.
 df1.counts <- count(df1, patient_num)
