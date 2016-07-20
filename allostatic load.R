@@ -29,13 +29,9 @@ df1$v017_Wght_oz_num <- NULL
 
 #' ###Stop the presses. The majority of visits are not physical encounters between patient and doc!
 #' They seem to be lab visits. How do we detect the 'real' ones? Perhaps by the presence of vitals?
-#real_visit_vars <- c('v039_Wght_oz_num','v039_Wght_lbs_numv033_Pls_num
-#v011_Dstlc_Prsr_num
-#v005_Bd_Ms_Indx_num
-#v023_Hght_cm_num
-#v018_Tmprtr_F_num
-#v034_Rsprtn_Rt_num
-
+real_visit_vars <- c('v039_Wght_lbs_num', 'v033_Pls_num', 'v011_Dstlc_Prsr_num', 'v005_Bd_Ms_Indx_num', 'v023_Hght_cm_num', 'v018_Tmprtr_F_num', 'v034_Rsprtn_Rt_num')
+df1$visit_indicator <- apply(df1[, real_visit_vars], 1, function(x) !all(is.na(x)))
+df1$cumm_sum <- cumsum(df1$visit_indicator)
 
 # Produce data frame of number of visits per unique patient.
 df1.counts <- count(df1, patient_num)
