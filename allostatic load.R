@@ -113,15 +113,15 @@ kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x
 #' As you found, `quantile()` tells what the cutoff values should be (as should the clinical dudes, and better, 
 #' but this is on the assumption that you're feeling impatient). The `between()` function will return a T/F
 #' for whether a value is between the second and third arguments.
-#' 
+
 
 View(cbind(sort(sapply(df1, function(x) mean(is.na(x))))))
 mean(sapply(df1, function(x) mean(is.na(x))))
 
-# write_csv(df1, "allostatic load 2.csv")
 
 #' = Next time: decide which columns to impute, which ones to bin, and which ones to throw away
 #' ...and impute the ones that you can
+
 
 df1$v003_Mlgnt_prst_inactive <- ifelse(is.na(df1$v003_Mlgnt_prst_inactive), 0, 1)
 df1$v003_Mlgnt_prst          <- ifelse(is.na(df1$v003_Mlgnt_prst), 0, 1)
