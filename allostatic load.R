@@ -8,11 +8,14 @@ df1 <- read_csv("allo_prakash.csv", na = c("", "(null)"),locale = locale(date_fo
 
 #' Remove unnecessary info columns, convert characters to factors, and numeric columns to numeric.
 df1 <- df1[ , !grepl("info", names(df1))]
+
 #' Guess which columns are numeric, See which columns were guessed to be non-numeric
 nums<-na.exclude(vs(df1,'z'))
 setdiff(names(df1),nums)
+
 #' In this case the `for` loop is faster
 for(ii in nums) df1[[ii]] <- as.numeric(df1[[ii]]); rm(ii, nums)
+
 #' Turn remaining character columns into factors
 df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), simplify = FALSE)
 
@@ -50,7 +53,7 @@ df1[, grepl("35741_8", names(df1))] <- NULL
 real_visit_vars <- c('v039_Wght_lbs_num', 'v033_Pls_num', 'v011_Dstlc_Prsr_num', 'v005_Bd_Ms_Indx_num', 'v023_Hght_cm_num', 'v018_Tmprtr_F_num', 'v034_Rsprtn_Rt_num')
 df1$visit_indicator <- apply(df1[, real_visit_vars], 1, function(x) !all(is.na(x))); rm(real_visit_vars)
 df1$cumm_sum <- cumsum(df1$visit_indicator)
-df1$cumm_sum <- c(0,df1$cumm_sum)[1:nrow(df1)]
+df1$cumm_sum <- c(0, df1$cumm_sum)[1:nrow(df1)]
 df1$unique_string <- paste(df1$patient_num, df1$cumm_sum)
 
 firstNonNA <- apply(df1,2,function(xx) min(which(!is.na(xx))))
@@ -60,32 +63,23 @@ df1_temp_out <- data.frame(lapply(df1_temp,lastNonMissing))
 
 ###########################################################
 
-df3<-subset(df1,FALSE)
+#enableJIT(3)
+df3 <- subset(df1, FALSE)
 df3[1:length(unique(df1$unique_string)), 1:66] <- NA
 df1.unique <- unique(df1$unique_string)
 
+# lastNonMissing <- function(xx) if(all(is.na(xx))) return(NA) else return(last(na.omit(xx)));
 system.time(
-#for(ii in 1:length(df1.unique$unique_string)) {
-for(ii in 1:100) {
-    cat('.') 
-  df3[ii,] <- data.frame(lapply(df1[df1$unique_string == df1.unique[ii], ], lastNonMissing))
-}
-)
-
-enableJIT(3)
-df3<-subset(df1,FALSE)
-df3[1:length(unique(df1$unique_string)), 1:66] <- NA
-df1.unique <- unique(df1$unique_string)
-
-system.time(
-#for(ii in 1:length(df1.unique$unique_string)) {
-for(ii in 1:100) {
+  for(ii in 1:length(unique(df1$unique_string))) {
     #cat('.') 
-  df3[ii,] <- data.frame(lapply(df1[df1$unique_string == df1.unique[ii], ], lastNonMissing))
-}
+    df3[ii, ] <- data.frame(lapply(df1[df1$unique_string == df1.unique[ii], ], lastNonMissing))
+  }
 )
 
-############################################################################################
+df3$unique_string <- paste(df3$patient_num, df3$cumm_sum)
+
+###############################################################################################
+
 
 # Produce data frame of number of visits per unique patient.
 df1.counts <- count(df1, patient_num)
@@ -99,13 +93,17 @@ summary(df1[ , grepl("unit", names(df1))])
 
 # Easy way to eyeball if any of the factor columns are "goofy." Tobacco is certainly goofy.
 sapply(df1[, vs(df1, "f")], function(x) length(levels(x)))
+
 #' Let's look at the Tobacco levels in more detail, after getting rid of the instance numbers
 #' that cause them to be spuriously unique
 View(table(gsub('\"cc\":\"GENERIC_KUMC_TOBACCO_USED_YEARS\",\"ix\":\"[0-9]{1,}\",','',levels(df1$v040_Yrs_Tbc_Usg))));
+
 #' Down to 168 distinct levels without the instance numbers. Now let's try in addition getting rid of the repetitive null entries...
 View(table(gsub('\\{\"vf\":\"null\",\"un\":\"Packs\"\\},','',gsub('\"cc\":\"GENERIC_KUMC_TOBACCO_USED_YEARS\",\"ix\":\"[0-9]{1,}\",','',levels(df1$v040_Yrs_Tbc_Usg)))))
+
 #' ...and of some more, partially null entries
 View(table(gsub(',\"vf\":\"null\",\"un\":\"Packs\"\\}','',gsub('\\{\"vf\":\"null\",\"un\":\"Packs\"\\},','',gsub('\"cc\":\"GENERIC_KUMC_TOBACCO_USED_YEARS\",\"ix\":\"[0-9]{1,}\",','',levels(df1$v040_Yrs_Tbc_Usg))))))
+
 #' Looks like the only value-flag (`"vf"`) values were `"null"` and the only unit (`"un"`) values were `"Packs"`. This means we can
 #' just convert these to character, extract the numeric values of the `"nv"` field, and call it a day!
 
@@ -119,10 +117,12 @@ summary(df1[ , vs(df1, "f")])
 kill_list <- names(which(sapply(df1[, vs(df1, "f")], function(x) length(levels(x)) == 1) == TRUE))
 # browser()
 df1 <- df1[ , !(names(df1) %in% kill_list)]
+
 #' Sure, this is fine for now. Might want to kill them based on low count rather than uniqueness, though
 #' Could in principle have a well-populated column that only ever has one of two possible values  
 summary(df1[ , vs(df1, "n")])
 sapply(df1[ , vs(df1, "n")], function(x) length(unique(x)), simplify = FALSE)
+
 # Find numerical columns with only NA's and 1's.
 kill_list <- names(which(sapply(df1[, vs(df1, "n")], function(x) length(unique(x)) <= 2))) 
 #df1 <- df1[ , !(names(df1) %in% kill_list)]
