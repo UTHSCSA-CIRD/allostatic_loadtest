@@ -92,5 +92,13 @@ correct <- function(xx, range, conv){
    return(xx2)   
 }
 
-
+#' Returns the last non-NA value in a column, or an NA if they are all NA
 lastNonMissing <- function(xx) if(all(is.na(xx))) return(NA) else return(last(na.omit(xx)));
+
+#' For data.frame `data` and column `name` (character) replace everything not 
+#' between lthresh and uthresh (numerics) with NA
+thresholdNA <- function(data,name,lthresh=-Inf,uthresh=Inf,envir){
+  data <- as.character(substitute(data));
+  if(missing(envir)) envir <- parent.frame();
+  envir[[data]][[name]] <- ifelse(between(rawvals <- envir[[data]][[name]],lthresh,uthresh),rawvals,NA);
+}
