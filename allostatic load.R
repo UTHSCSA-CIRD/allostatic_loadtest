@@ -18,11 +18,11 @@ for(ii in nums) df1[[ii]] <- as.numeric(df1[[ii]]); rm(ii, nums)
 
 #' Turn remaining character columns into factors
 df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), simplify = FALSE)
-
+df1[ , vs(df1, 'c')] <- sapply(df1[ , vs(df1, 'c')], function(x) as.factor(x), simplify = FALSE)
 
 #' Consider creating a new column instead, named age_at_visit_years, since that's what this is
 df1$age_at_visit_years <- df1$age_at_visit_days / 365  # Convert to years.
-df1$v039_Wght_lbs_num <- df1$v039_Wght_oz_num * 0.0625 # Convert to pounds.
+df1$v039_Wght_lbs_num  <- df1$v039_Wght_oz_num * 0.0625 # Convert to pounds.
 df1$age_at_visit_days               <- NULL
 df1$v017_Wght_oz_num                <- NULL
 df1$v004_Albmn_LP_1755_8_num        <- NULL
@@ -115,7 +115,6 @@ View(table(gsub(',\"vf\":\"null\",\"un\":\"Packs\"\\}','',gsub('\\{\"vf\":\"null
 #' Might want to at least eyeball it first
 summary(df1[ , vs(df1, "f")])
 kill_list <- names(which(sapply(df1[, vs(df1, "f")], function(x) length(levels(x)) == 1) == TRUE))
-# browser()
 df1 <- df1[ , !(names(df1) %in% kill_list)]
 
 #' Sure, this is fine for now. Might want to kill them based on low count rather than uniqueness, though
@@ -161,8 +160,8 @@ mean(sapply(df1, function(x) mean(is.na(x))))
 df1$v003_Mlgnt_prst_inactive <- ifelse(is.na(df1$v003_Mlgnt_prst_inactive), 0, 1)
 df1$v003_Mlgnt_prst          <- ifelse(is.na(df1$v003_Mlgnt_prst), 0, 1)
 
-df1$v024_gstrsphgl          <- ifelse(is.na(df1$v024_gstrsphgl), 0, 1)
-df1$v024_gstrsphgl_inactive <- ifelse(is.na(df1$v024_gstrsphgl_inactive), 0, 1)
+df1$v024_gstrsphgl           <- ifelse(is.na(df1$v024_gstrsphgl), 0, 1)
+df1$v024_gstrsphgl_inactive  <- ifelse(is.na(df1$v024_gstrsphgl_inactive), 0, 1)
 
 
 df1 %>% group_by(patient_num) %>% summarise(patient_visits = n())
@@ -170,9 +169,96 @@ temp1 <- df1 %>% group_by(patient_num) %>% summarise(patient_visits = n())
 temp2 <- df1 %>% group_by(patient_num) %>% summarise(albumin_data_percent = 1 - mean(is.na(v004_Albmn_LP_1751_7_num)))
 ggplot(temp2, aes(albumin_data_percent)) + geom_histogram(binwidth = .05)
 
+#########################################################################
 
-rndm_50_sample <- sample_frac(df1.counts, 0.5)
-rndm_50_sample <- rndm_50_sample$patient_num
+
+samp <- samp[samp$age_at_visit_years >= 20, ]
+samp$v007_rctv_prtn_1988_5_num <- with(samp, v007_rctv_prtn_1988_5_num * ifelse(v007_rctv_prtn_1988_5_unit=='mg/l', 10,	1))
+samp$cumm_sum         <- NULL
+samp$unique_string    <- NULL
+samp$v039_Wght_oz_num <- NULL
+
+plot(samp[, vs(samp)[2:16]],pch='.',col='#00000010')
+samp[, grepl("unit", names(samp))] <- sapply(samp[ ,grepl("unit", names(samp))], function(x) as.factor(x), simplify = FALSE)
+summary(samp[, grepl("unit", names(samp))])
+
+# v004_Albmn_LP_1751_7_num > 10
+# v005_Bd_Ms_Indx_num > 100
+# v018_Tmprtr_F_num < 90
+# v023_Hght_cm_num < 120
+# v032_Prst_spcfc_2857_1_num > 100
+# v034_Rsprtn_Rt_num > 40
+samp[!is.na(samp$v004_Albmn_LP_1751_7_num) & samp$v004_Albmn_LP_1751_7_num > 10, 'v004_Albmn_LP_1751_7_num']        <- NA
+samp[!is.na(samp$v005_Bd_Ms_Indx_num) & samp$v005_Bd_Ms_Indx_num > 100, 'v005_Bd_Ms_Indx_num']                      <- NA
+samp[!is.na(samp$v018_Tmprtr_F_num) & samp$v018_Tmprtr_F_num < 90, 'v018_Tmprtr_F_num']                             <- NA
+samp[!is.na(samp$v023_Hght_cm_num) & samp$v023_Hght_cm_num < 120, 'v023_Hght_cm_num']                               <- NA
+samp[!is.na(samp$v032_Prst_spcfc_2857_1_num) & samp$v032_Prst_spcfc_2857_1_num > 100, 'v032_Prst_spcfc_2857_1_num'] <- NA
+samp[!is.na(samp$v034_Rsprtn_Rt_num) & samp$v034_Rsprtn_Rt_num > 40, 'v034_Rsprtn_Rt_num']                          <- NA
+plot(samp[, vs(samp)[2:16]], pch='.', col='#00000010')
+
+plot(
+	transform(
+		samp[, vs(samp)[-1]],
+			v031_Trglcrd_LP_2571_8_num = log(v031_Trglcrd_LP_2571_8_num),
+			v032_Prst_spcfc_2857_1_num = log(v032_Prst_spcfc_2857_1_num)
+	),
+pch = '.', col = '#0000FF10')
+
+
+
+
+plot(transform(samp[, vs(samp)[-1]], v031_Trglcrd_LP_2571_8_num = log(v031_Trglcrd_LP_2571_8_num), v032_Prst_spcfc_2857_1_num = log(v032_Prst_spcfc_2857_1_num), v007_rctv_prtn_1988_5_num = log(v007_rctv_prtn_1988_5_num)), pch = '.', col = '#0000FF10')
+
+# invert, val returns values instead of indexes
+samp[ , grep('_unit$',vs(samp,'c'), invert = T, val = T)] <- sapply(samp[, grep('_unit$', vs(samp, 'c'), invert = T, val = T)], function(x) as.factor(x), simplify = FALSE)
+samp$v003_Mlgnt_prst               <- !is.na(samp$v003_Mlgnt_prst)
+samp$v003_Mlgnt_prst_inactive      <- !is.na(samp$v003_Mlgnt_prst_inactive)
+samp$v024_gstrsphgl                <- !is.na(samp$v024_gstrsphgl)
+samp$v024_gstrsphgl_inactive       <- !is.na(samp$v024_gstrsphgl_inactive)
+samp$v031_ln_Trglcrd_LP_2571_8_num <- log(samp$v031_Trglcrd_LP_2571_8_num)
+samp$v032_ln_Prst_spcfc_2857_1_num <- log(samp$v032_Prst_spcfc_2857_1_num)
+samp$v007_ln_rctv_prtn_1988_5_num  <- log(samp$v007_rctv_prtn_1988_5_num)
+
+write(names(samp), "names.csv")
+samp_names <- read_csv("names.csv")
+
+samp$Malignancy              <- as.factor(samp$Malignancy)
+samp$`Malignancy Inactive`   <- as.factor(samp$`Malignancy Inactive`)
+samp$v024_gstrsphgl          <- as.factor(samp$v024_gstrsphgl)
+samp$v024_gstrsphgl_inactive <- as.factor(samp$v024_gstrsphgl_inactive)
+
+non_log_columns <- c('PSA', 'C-reactive Protein', 'Triglycerides')
+pairs(samp[, vs(samp[, !(names(samp) %in% non_log_columns)])[-1]], lower.panel = NULL, pch = ".", col = '#0000FF10')
+
+save(samp, samp2, randompats, file = "survSave.rdata")
+shiny::runApp()
+
+# 1. Convert the diagnoses columns to TRUE/FALSE with !is.na(...)
+# 2. Log transform v031_Trglcrd_LP_2571_8_num, v032_Prst_spcfc_2857_1_num, v007_rctv_prtn_1988_5_num
+# 3. If you haven't already, `for(ii in grep('_unit$',vs(samp,'c'),invert = T,val=T)) samp[[ii]] <- factor(samp[[ii]])`
+# 4. Save this new samp (again and always, along with samp2 and randompats) to the survSave.rdata file, and run TABSIE
+# 5. Save a nice screencap of the constellation plot, might look good in a poster. I'd also like to see it.
+# 6. Ditto with the "Focused PCA" option enabled, once for each of the response variables, and I'd like to see that.
+# 7. Save a final version of the scatter plot.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
