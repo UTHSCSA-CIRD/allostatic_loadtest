@@ -100,5 +100,9 @@ lastNonMissing <- function(xx) if(all(is.na(xx))) return(NA) else return(last(na
 thresholdNA <- function(data,name,lthresh=-Inf,uthresh=Inf,envir){
   data <- as.character(substitute(data));
   if(missing(envir)) envir <- parent.frame();
-  envir[[data]][[name]] <- ifelse(between(rawvals <- envir[[data]][[name]],lthresh,uthresh),rawvals,NA);
+  #envir[[data]][[name]] <- ifelse(between(rawvals <- envir[[data]][[name]],lthresh,uthresh),rawvals,NA);
+  rawvals <- envir[[data]][[name]];
+  inrange <- between(rawvals,lthresh,uthresh);
+  newvals <- ifelse(inrange,rawvals,NA);
+  envir[[data]][[name]] <- newvals;
 }
