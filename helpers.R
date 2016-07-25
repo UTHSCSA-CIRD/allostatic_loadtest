@@ -97,14 +97,11 @@ lastNonMissing <- function(xx) if(all(is.na(xx))) return(NA) else return(last(na
 
 #' For data.frame `data` and column `name` (character) replace everything not 
 #' between lthresh and uthresh (numerics) with NA
-thresholdNA <- function(data,name,lthresh=-Inf,uthresh=Inf,envir){
+thresholdNA <- function(data, name, lthresh = -Inf, uthresh = Inf, envir){
   data <- as.character(substitute(data));
   if(missing(envir)) envir <- parent.frame();
-  envir[[data]][[name]] <- ifelse(between(rawvals <- envir[[data]][[name]],lthresh,uthresh),rawvals,NA);
+  envir[[data]][[name]] <- ifelse(between(rawvals <- envir[[data]][[name]], lthresh, uthresh), rawvals, NA);
 }
-
-
-
 
 
 

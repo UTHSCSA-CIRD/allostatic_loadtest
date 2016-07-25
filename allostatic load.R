@@ -182,6 +182,7 @@ plot(samp[, vs(samp)[2:16]],pch='.',col='#00000010')
 samp[, grepl("unit", names(samp))] <- sapply(samp[ ,grepl("unit", names(samp))], function(x) as.factor(x), simplify = FALSE)
 summary(samp[, grepl("unit", names(samp))])
 
+
 # v004_Albmn_LP_1751_7_num > 10
 # v005_Bd_Ms_Indx_num > 100
 # v018_Tmprtr_F_num < 90
@@ -194,6 +195,7 @@ samp[!is.na(samp$v018_Tmprtr_F_num) & samp$v018_Tmprtr_F_num < 90, 'v018_Tmprtr_
 samp[!is.na(samp$v023_Hght_cm_num) & samp$v023_Hght_cm_num < 120, 'v023_Hght_cm_num']                               <- NA
 samp[!is.na(samp$v032_Prst_spcfc_2857_1_num) & samp$v032_Prst_spcfc_2857_1_num > 100, 'v032_Prst_spcfc_2857_1_num'] <- NA
 samp[!is.na(samp$v034_Rsprtn_Rt_num) & samp$v034_Rsprtn_Rt_num > 40, 'v034_Rsprtn_Rt_num']                          <- NA
+
 plot(samp[, vs(samp)[2:16]], pch='.', col='#00000010')
 
 plot(
@@ -203,9 +205,6 @@ plot(
 			v032_Prst_spcfc_2857_1_num = log(v032_Prst_spcfc_2857_1_num)
 	),
 pch = '.', col = '#0000FF10')
-
-
-
 
 plot(transform(samp[, vs(samp)[-1]], v031_Trglcrd_LP_2571_8_num = log(v031_Trglcrd_LP_2571_8_num), v032_Prst_spcfc_2857_1_num = log(v032_Prst_spcfc_2857_1_num), v007_rctv_prtn_1988_5_num = log(v007_rctv_prtn_1988_5_num)), pch = '.', col = '#0000FF10')
 
@@ -219,16 +218,21 @@ samp$v031_ln_Trglcrd_LP_2571_8_num <- log(samp$v031_Trglcrd_LP_2571_8_num)
 samp$v032_ln_Prst_spcfc_2857_1_num <- log(samp$v032_Prst_spcfc_2857_1_num)
 samp$v007_ln_rctv_prtn_1988_5_num  <- log(samp$v007_rctv_prtn_1988_5_num)
 
-write(names(samp), "names.csv")
+#write(names(samp), "names.csv")
 samp_names <- read_csv("names.csv")
+names(samp) <- samp_names$new; rm(samp_names)
 
 samp$Malignancy              <- as.factor(samp$Malignancy)
 samp$`Malignancy Inactive`   <- as.factor(samp$`Malignancy Inactive`)
 samp$v024_gstrsphgl          <- as.factor(samp$v024_gstrsphgl)
 samp$v024_gstrsphgl_inactive <- as.factor(samp$v024_gstrsphgl_inactive)
+samp$visit_indicator         <- as.factor(samp$visit_indicator)
+#samp <- samp[, !grepl("unit", names(samp))]
+#samp <- samp[, !(names(samp) %in% non_log_columns)]
 
 non_log_columns <- c('PSA', 'C-reactive Protein', 'Triglycerides')
 pairs(samp[, vs(samp[, !(names(samp) %in% non_log_columns)])[-1]], lower.panel = NULL, pch = ".", col = '#0000FF10')
+pairs(samp[, vs(samp[, !(names(samp) %in% non_log_columns)])[-1]], pch = ".", col = '#0000FF10')
 
 save(samp, samp2, randompats, file = "survSave.rdata")
 shiny::runApp()
@@ -243,6 +247,64 @@ shiny::runApp()
 
 
 
+require("C50")
+#require("Amelia")
+samp_noUnits <- samp[, !(grepl("unit", names(samp)))]
+excluded_variables <- c('Patient', 'Date', 'Birth Date', 'Sex', 's2resp')
+samp_noUnits$Cortisol <- as.numeric(samp_noUnits$Cortisol)
+samp_noUnits$Fibrinogen <- as.numeric(samp_noUnits$Fibrinogen)
+samp_noUnits$`DHEA-S` <- NULL
+
+levels(samp_noUnits$v009_Crnt_Evr_Smkr)[2] <- "?"
+samp_noUnits[is.na(samp_noUnits$v009_Crnt_Evr_Smkr), ]$v009_Crnt_Evr_Smkr <- "?"
+
+qfactor <- function(data = samp_noUnits, name = 'v010_Crnt_Sm_Smkr', envir) { 
+  data <- as.character(substitute(data));
+  if(missing(envir)) envir <- parent.frame();
+  levels(envir[[data]][[name]])[2] <- "?"
+  envir[[data]][is.na(envir[[data]][[name]]), ][[name]] <- "?"
+}
+
+
+
+qfactor(samp_noUnits, 'v013_Crnt_Usr',)
+qfactor(samp_noUnits, 'v019_Lght_Tbc_Smkr',)
+qfactor(samp_noUnits, 'v021_Hv_Tbc_Smkr',)
+qfactor(samp_noUnits, 'v022_Frmr_Usr',)
+qfactor(samp_noUnits, 'v026_Frmr_Smkr',)
+qfactor(samp_noUnits, 'v027_Psv_Expsr',)
+qfactor(samp_noUnits, 'v029_Nvr_Smkr',)
+qfactor(samp_noUnits, 'v030_Nvr_Usd',)
+qfactor(samp_noUnits, 'v035_Smkr_Crnt_Unknwn',)
+samp_noUnits$v036_Smkng_Qt_Dt <- NULL
+qfactor(samp_noUnits, 'v037_Unknwn_Evr_Smkd',)
+qfactor(samp_noUnits, 'v041_Ys', )
+samp_noUnits$v016_Dschrg_Dspstn <- NULL
+samp_noUnits$v012_D_DMR_QNTTTV <- NULL
+samp_noUnits$v015_D_DMR_GENERIC_KUH_COMPONENT_ID_2396_num <- NULL
+samp_noUnits$Epinephrine <- NULL
+summary(samp_noUnits[, vs(samp_noUnits, "f")])
+
+#small_data <- samp_noUnits[!is.na(samp_noUnits$Albumin), ]
+small_data <- samp_noUnits[, !(names(samp_noUnits) %in% excluded_variables)]
+names(small_data) <- make.names(names(small_data))
+small_data$Norepinephrine <- NULL
+for(ii in vs(small_data,'f')) { 
+  if(levels(small_data[[ii]])[2] == '?') {
+    small_data[[ii]] <- factor(small_data[[ii]],labels=c('TRUE','FALSE'))
+  }
+}
+
+
+small_data <- as.data.frame(small_data)
+m1 <- C5.0(x=small_data[,-5], y=small_data$Malignancy)
+
+
+
+
+treeModel <- C5.0(x = churnTrain[, -20], y = churnTrain$churn)
+treeModel
+summary(treeModel)
 
 
 
