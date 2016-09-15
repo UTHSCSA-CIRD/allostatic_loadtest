@@ -93,7 +93,8 @@ correct <- function(xx, range, conv){
 }
 
 
-lastNonMissing <- function(xx) if(all(is.na(xx))) return(NA) else return(last(na.omit(xx)));
+lastNonMissing <- function(xx) 
+  if(all(is.na(xx))) return(NA) else return(last(na.omit(xx)));
 
 #' For data.frame `data` and column `name` (character) replace everything not 
 #' between lthresh and uthresh (numerics) with NA
