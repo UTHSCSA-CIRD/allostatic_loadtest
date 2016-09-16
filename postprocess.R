@@ -15,11 +15,11 @@ source("helpers.R")
 #' # Set session variables
 #' 
 #' The name of the raw data file
-datafile <- 'allo_160913_update.csv';
+datafile <- 'allo_04_allo_megaquery_v4.csv';
 #' Minimum number of non-missing values to remain in dataset
 minnm <- 50;
 #' ...except for the following columns which are always kept.
-vars_keep <- c('v034_Dcsd_pr_SS');
+vars_keep <- c('v028_Dcsd_pr_SS');
 #' These variables should always be factors, even if they look like numbers.
 vars_factor <- c('patient_num');
 #' grep targets for column names that should not be part of analysis
