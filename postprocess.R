@@ -154,9 +154,14 @@ vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm],k
 #df1 <- df1[,vars_enoughvals];
 
 #' Any crazy number of levels?
-meta_flevels <- sapply(df3[, vs(df3, "f")], function(xx) length(levels(xx)));
+meta_flevels <- sapply(df2[, vs(df2, "f")], function(xx) length(levels(xx)));
 cbind(sort(meta_flevels))
 #' 
+#' # TODO:
+#' * Use the `splitCodes()` function
+#' * Write function for remapping certain codes to readable names
+#' * SMOKING_TOB_USE is another `splitCodes()` case
+#' * Remove department and just keep spec for Prvdr_Spclt, which makes it another splitCodes()
 #' 
 #' # Questions to think about:
 #' 
@@ -166,4 +171,5 @@ cbind(sort(meta_flevels))
 #' * Ditto for GENERIC_KUMC_TOBACCO_USED_YEARS, but why is units still 'Packs'?
 #' * Perhaps DataFinisher should also include `DEATH_DATE`?
 #' * How to plot this data?
+#' 
 #' 
