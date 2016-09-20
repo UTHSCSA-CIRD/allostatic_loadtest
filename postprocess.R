@@ -134,12 +134,17 @@ df3 <- df2[,grep(patterns_nonanalytic,names(df2),inv=T),drop=F];
 meta_nonmissing <- sapply(df3,function(xx) sum(!is.na(xx)));
 cbind(`Number Non Missing`=meta_nonmissing);
 
+#' Any crazy number of levels?
+meta_flevels <- sapply(df3[, vs(df3, "f")], function(xx) length(levels(xx)));
+cbind(sort(meta_flevels))
 #' 
 #' 
 #' # Questions to think about:
 #' 
 #' * In what cases to parse variables out of JSON vs. pre-separate them in query?
 #' * How to map `Prvdr_Spclt`, `Encntr_Tp`, and `Fncl_Cls`?
+#' * GENERIC_KUMC_PACK_PER_DAY: NVAL_NUM is the only informative field, TODO: write new rule
+#' * The other main variable to be simplified is `v096_Yrs_Tbc_Usg`
 #' * Perhaps DataFinisher should also include `DEATH_DATE`?
 #' * How to plot this data?
 #' 
