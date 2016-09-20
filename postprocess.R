@@ -20,15 +20,31 @@ datafile <- 'allo_04_allo_megaquery_v4.csv';
 minnm <- 50;
 #' ...except for the following columns which are always kept.
 vars_keep <- c('v028_Dcsd_pr_SS');
+#' Patient ID. For i2b2/DB/DF always going to be `patient_num`
+vars_patid <- 'patient_num';
 #' These variables should always be factors, even if they look like numbers.
-vars_factor <- c('patient_num');
-#' grep targets for column names that should not be part of analysis
+vars_factor <- c(vars_patid);
+#' Grep targets for column names that should not be part of analysis.
+#' (after already eliminating all the _info columns)
 patterns_nonanalytic <- paste0(c(
   # can add more values and/or new lines as needed
   # just make sure there are no leading or trailing
   # commas
   '_date$','_Dschrg_Dspstn$','_unit$'
-  ,collapse='|'));
+  ),collapse='|');
+#' As above, but these are grep targets for column names some or all
+#' of which we expect to be collected specifically during in-person
+#' visits.
+patterns_realvisit <- paste0(c(
+  'stlc_Prsr_num$',
+  '_Pls_num$','_Wght_oz_num$',
+  '_Bd_Ms_Indx_num$','_Hght_cm_num$',
+  '_Tmprtr_F_num$'
+  ),collapse='|');
+#' Variables to later convert to 2-level factors
+patterns_twolvl <- paste0(c(
+  '_Mlgnt_prst','_Esphgl_rflx','_Dcsd_pr_SS'
+  ),collapse='|');
 
 #' # Read in Data and Review It
 #' df0 will be where the raw data is read in
@@ -41,11 +57,6 @@ df1 <- df0[ , vars_noninfo <- grep("_info$", names(df0),inv=T,val=T)];
 #+ echo=FALSE
 vars_noninfo;
 
-#' Now, how many non-missing values does each row have? Our convention will be to
-#' save lists of column names in vectors prefixed by `vars_` and lists of column
-#' information in vectors prefixed by `meta_`.
-meta_nonmissing <- sapply(df1,function(xx) sum(!is.na(xx)));
-cbind(`Number Non Missing`=meta_nonmissing);
 
 #' We don't have a one-size fits all cutoff-- this is EMR data, and missing 
 #' values are the norm. We need to eyeball the data and see how often 'typical' 
@@ -64,7 +75,7 @@ cbind(`Number Non Missing`=meta_nonmissing);
 #' We keep just the variables that have more non-missing values than the threshold
 #' set by `minnm`.
 vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm],keep)));
-df1 <- df1[,vars_enoughvals];
+#df1 <- df1[,vars_enoughvals];
 #' Guess which columns are numeric. `vs()` is a function defined in the 
 #' `helpers.R` file.
 vars_numeric <- setdiff(na.exclude(vs(df1,'z')),vars_factor);
@@ -80,6 +91,9 @@ for(.ii in vars_numeric) df1[[.ii]] <- as.numeric(df1[[.ii]]);
 #' ...and characters to factors, again saving the selected column names first
 vars_2factor <- unique(c(vs(df1,'c'),vars_factor));
 df1[,vars_2factor] <- sapply(df1[,vars_2factor],factor,simplify = F);
+#' Collapse certain variables to two levels
+vars_twolvl <- grep(patterns_twolvl,names(df1),val=T);
+df1[,vars_twolvl] <- data.frame(lapply(df1[,vars_twolvl],function(xx) factor(is.na(xx))));
 
 #' Hardcoding some new columns
 #' 
@@ -88,11 +102,38 @@ df1$age_at_visit_years <- df1$age_at_visit_days / 365  # Convert to years.
 #' TODO: Oops, forgot to pull vitals! Will need to re-run. :-()
 #df1$v039_Wght_lbs_num  <- df1$v039_Wght_oz_num * 0.0625 # Convert to pounds.
 
+#' Let's mark the in-person visits. New function in `helpers.R` for doing this 
+#' concisely. Additional `ids` and `indicators` columns added to `df1`.
+#' For larger datasets might want to capture those as a separate two-column
+#' `data.frame` by setting the optional `returnDF` argument to `FALSE` and
+#' then inserting the columns of that `data.frame` into `df1` in a separate
+#' command. But this is a reasonably sized dataset.
+df1 <- findEvents(df1,patterns_realvisit);
+#' Create a unique patient_num/visit-set combo `pn_vis`
+df1$pn_vis <- paste(df1[[vars_patid]],df1$ids,sep=':');
+#' Create an empty `data.frame` with an identical column layout to `df1`
+df2 <- subset(df1,FALSE);
+#' Iterate over `pn_vis` to create the collapsed `data.frame` populated with
+#' the last non-missing value of every column in the dataset. 
+#' This part takes a looong time:
+for(ii in 1:length(meta_unqpnvis <- unique(df1$pn_vis))){
+  df2[ii,] <- data.frame(lapply(df1[df1$pn_vis==meta_unqpnvis[ii],],lastNonMissing));
+}
+
 #' Sanity-checking units 
+#' Checking to see if any of the units of measurement will need converting later on.
+# Not yet... let's get the rest of this working and then...
+#summary(df1[ , grepl("unit", names(df1))])
 #' 
 #' Removing non-analytic columns
-#' 
-#' Setting diagnoses to T/F
+df3 <- df2[,grep(patterns_nonanalytic,names(df2),inv=T),drop=F];
+
+#' Now, how many non-missing values does each row have? Our convention will be to
+#' save lists of column names in vectors prefixed by `vars_` and lists of column
+#' information in vectors prefixed by `meta_`.
+meta_nonmissing <- sapply(df3,function(xx) sum(!is.na(xx)));
+cbind(`Number Non Missing`=meta_nonmissing);
+
 #' 
 #' 
 #' # Questions to think about:

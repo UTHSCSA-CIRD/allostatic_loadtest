@@ -104,8 +104,27 @@ thresholdNA <- function(data, name, lthresh = -Inf, uthresh = Inf, envir){
   envir[[data]][[name]] <- ifelse(between(rawvals <- envir[[data]][[name]], lthresh, uthresh), rawvals, NA);
 }
 
-
-
+#' Return an indicator variable for events meeting the 
+#' \code{selectfun} criterion or a series of ascending numbers ending at 
+#' each event and restarting afterward, or both.
+#' 
+#' @param data A \code{data.frame} (required).
+#' @param pattern A regular expression for identifying columns on which to run the test.
+#' @param cnames If \code{pattern} is omitted, must be a vector of column names from the \code{data.frame}.
+#' @param selectfun A function that operates on a vector and returns a single boolean value.
+#' @param result What to return: ascending event-IDs, boolean indicators, or both (default).
+#' @param returnDF Should the selected result be returned as part of the original \code{data.frame} (TRUE, default) or by itself?
+findEvents <- function(data,pattern,
+                       cnames=grep(pattern,names(data),val=T),
+                       selectfun=function(xx) !all(is.na(xx)),
+                       result=c('ids','indicators'),
+                       returnDF=TRUE){
+  indicators <- apply(data[,cnames],1,selectfun);
+  ids <- c(0,cumsum(indicators))[1:length(indicators)];
+  out <- data.frame(indicators,ids);
+  if(returnDF) return(cbind(data,out[,result,drop=F]));
+  return(out[,result]);
+}
 
 
 
