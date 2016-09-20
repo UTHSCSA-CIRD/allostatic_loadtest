@@ -29,8 +29,10 @@ vars_factor <- c(vars_patid);
 patterns_nonanalytic <- paste0(c(
   # can add more values and/or new lines as needed
   # just make sure there are no leading or trailing
-  # commas
-  '_date$','_Dschrg_Dspstn$','_unit$'
+  # commas. Note that for the prostate cancer 
+  # sex_cd is non-analytic, but for most datasets
+  # this will not be the case
+  '_date$','_Dschrg_Dspstn$','_unit$','^sex_cd$'
   ),collapse='|');
 #' As above, but these are grep targets for column names some or all
 #' of which we expect to be collected specifically during in-person
@@ -144,7 +146,7 @@ cbind(sort(meta_flevels))
 #' * In what cases to parse variables out of JSON vs. pre-separate them in query?
 #' * How to map `Prvdr_Spclt`, `Encntr_Tp`, and `Fncl_Cls`?
 #' * GENERIC_KUMC_PACK_PER_DAY: NVAL_NUM is the only informative field, TODO: write new rule
-#' * The other main variable to be simplified is `v096_Yrs_Tbc_Usg`
+#' * Ditto for GENERIC_KUMC_TOBACCO_USED_YEARS, but why is units still 'Packs'?
 #' * Perhaps DataFinisher should also include `DEATH_DATE`?
 #' * How to plot this data?
 #' 
