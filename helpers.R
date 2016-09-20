@@ -127,9 +127,46 @@ findEvents <- function(data,pattern,
 }
 
 
+#' Parse \code{data} a vector of character variables in JSON format and return 
+#' a vector of list objects.
+#' @param data A character vector in JSON format.
+jsonParse <- function(xx,...){
+  # TODO: error checking to make sure it's actually JSON
+  # Lazy way to create a vectorized JSON parser
+  jpfn <- Vectorize(fromJSON,USE.NAMES=F);
+  # Now use it, after catching missing values
+  jpfn(paste0('[',ifelse(is.na(xx),'null',as.character(xx)),']'));
+}
 
+#' Iterate over a list of lists and from each list extract the element named by
+#'\code{item} if it exists. Each result can be a vector. Return a vector or list.
+#' @param xx List of lists, each itself containing at least one list-like object
+#' @param item Character vector of length 1 saying what attribute to try to extract from each sub object of each list of \code{xx}
+#' @param type If more than one sub-lists contain the attribute named by \code{item}, what to do? \code{last} (default) and \code{first} guarantee single-value per cell output. \code{unique} returns unique values and \code{all} returns all values.
+dfListExtract <- function(xx,item,type=c('last','first','unique','all')){
+  fn <- switch(match.arg(type),
+               last = function(xx) tail(xx,1),
+               first = function(xx) head(xx,1),
+               unique = unique,
+               all = identity
+               );
+  sapply(xx,function(yy) {
+    out <-fn(unlist(lapply(yy,`[[`,item)));
+    ifelse(is.null(out),NA,out);
+    });
+}
 
-
-
-
+#' Take a vector of codes, sometimes more than one that are comma separated
+#' Find all unique codes, and return a \code{data.frame} with a column of T/F
+#' values for each code.
+splitCodes <- function(xx,prefix='code_',...){
+  # converts a string to factor and if already a factor trims off unused levels  
+  xx <- factor(xx); 
+  # find unique codes
+  codes <- sort(unique(unlist(strsplit(levels(xx),','))));
+  out <- data.frame(sapply(codes,
+                           function(yy) factor(grepl(paste0('\\b',yy,'\\b'),as.character(xx))),simplify=F));
+  names(out) <- gsub('^X',prefix,names(out));
+  out;
+}
 #

@@ -24,6 +24,13 @@ vars_keep <- c('v028_Dcsd_pr_SS');
 vars_patid <- 'patient_num';
 #' These variables should always be factors, even if they look like numbers.
 vars_factor <- c(vars_patid);
+#' Grep targets for columns that are actually blobs of JSON
+patterns_removefromvals <- paste0(c(
+  'GENERIC_UTHSCSA_FINCLASS_','GENERIC_UTHSCSA_ENC_TYPE_','"'
+  ),collapse='|');
+patterns_JSON <- paste0(c(
+  '_Yrs_Tbc_Usg','_Pcks_Pr_D'
+),collapse='|');
 #' Grep targets for column names that should not be part of analysis.
 #' (after already eliminating all the _info columns)
 patterns_nonanalytic <- paste0(c(
@@ -32,6 +39,7 @@ patterns_nonanalytic <- paste0(c(
   # commas. Note that for the prostate cancer 
   # sex_cd is non-analytic, but for most datasets
   # this will not be the case
+  patterns_JSON,'_info$',
   '_date$','_Dschrg_Dspstn$','_unit$','^sex_cd$'
   ),collapse='|');
 #' As above, but these are grep targets for column names some or all
@@ -53,12 +61,20 @@ patterns_twolvl <- paste0(c(
 df0 <- read_csv(datafile, na = c("", "(null)")
                 ,locale = locale(date_format="%m/%d/%y"));
 
+#' Convert JSON values to lists squished into a `data.frame` column.
+vars_JSON <- grep(patterns_JSON,names(df0),val=T);
+df0[,vars_JSON] <- sapply(df0[,vars_JSON],jsonParse,simplify = F);
+#' At the moment it happens that both of the JSON variables also have numeric 
+#' values that need to be extracted. This will not always be the case, and so a 
+#' separate var vector might be needed.
+vars_JSON2num <- vars_JSON;
+for(ii in vars_JSON2num) df0[[paste0(ii,'_num')]] <- dfListExtract(df0[[ii]],'nv');
+
 #' Remove info columns, retaining which ones they are in the `vars_noninfo` variable.
 df1 <- df0[ , vars_noninfo <- grep("_info$", names(df0),inv=T,val=T)];
 #' We kept: 
 #+ echo=FALSE
 vars_noninfo;
-
 
 #' We don't have a one-size fits all cutoff-- this is EMR data, and missing 
 #' values are the norm. We need to eyeball the data and see how often 'typical' 
@@ -74,10 +90,6 @@ vars_noninfo;
 #' we can go back up to the `Set session variables` section, change these values
 #' and re-run this script.
 #' 
-#' We keep just the variables that have more non-missing values than the threshold
-#' set by `minnm`.
-vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm],keep)));
-#df1 <- df1[,vars_enoughvals];
 #' Guess which columns are numeric. `vs()` is a function defined in the 
 #' `helpers.R` file.
 vars_numeric <- setdiff(na.exclude(vs(df1,'z')),vars_factor);
@@ -113,13 +125,16 @@ df1$age_at_visit_years <- df1$age_at_visit_days / 365  # Convert to years.
 df1 <- findEvents(df1,patterns_realvisit);
 #' Create a unique patient_num/visit-set combo `pn_vis`
 df1$pn_vis <- paste(df1[[vars_patid]],df1$ids,sep=':');
+#' Identify the analytic variables
+vars_analytic <- grep(patterns_nonanalytic,names(df1),inv=T,val=T);
 #' Create an empty `data.frame` with an identical column layout to `df1`
-df2 <- subset(df1,FALSE);
+#' Removing non-analytic columns
+df2 <- subset(df1,FALSE)[,vars_analytic,drop=F];
 #' Iterate over `pn_vis` to create the collapsed `data.frame` populated with
 #' the last non-missing value of every column in the dataset. 
 #' This part takes a looong time:
 for(ii in 1:length(meta_unqpnvis <- unique(df1$pn_vis))){
-  df2[ii,] <- data.frame(lapply(df1[df1$pn_vis==meta_unqpnvis[ii],],lastNonMissing));
+  df2[ii,] <- data.frame(lapply(df1[df1$pn_vis==meta_unqpnvis[ii],vars_analytic],lastNonMissing));
 }
 
 #' Sanity-checking units 
@@ -127,14 +142,16 @@ for(ii in 1:length(meta_unqpnvis <- unique(df1$pn_vis))){
 # Not yet... let's get the rest of this working and then...
 #summary(df1[ , grepl("unit", names(df1))])
 #' 
-#' Removing non-analytic columns
-df3 <- df2[,grep(patterns_nonanalytic,names(df2),inv=T),drop=F];
 
 #' Now, how many non-missing values does each row have? Our convention will be to
 #' save lists of column names in vectors prefixed by `vars_` and lists of column
 #' information in vectors prefixed by `meta_`.
-meta_nonmissing <- sapply(df3,function(xx) sum(!is.na(xx)));
+meta_nonmissing <- sapply(df2,function(xx) sum(!is.na(xx)));
 cbind(`Number Non Missing`=meta_nonmissing);
+#' We keep just the variables that have more non-missing values than the threshold
+#' set by `minnm`.
+vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm],keep)));
+#df1 <- df1[,vars_enoughvals];
 
 #' Any crazy number of levels?
 meta_flevels <- sapply(df3[, vs(df3, "f")], function(xx) length(levels(xx)));
