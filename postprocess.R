@@ -7,10 +7,11 @@
 
 #' # Load libraries
 #+ message=FALSE
-require("readr")
-require("dplyr")
-require("ggplot2")
-source("helpers.R")
+require("readr");
+require('rjson');
+require("dplyr");
+require("ggplot2");
+source("helpers.R");
 
 #' # Set session variables
 #' 
@@ -28,11 +29,15 @@ vars_factor <- c(vars_patid);
 patterns_removefromvals <- paste0(c(
   'GENERIC_UTHSCSA_FINCLASS_','GENERIC_UTHSCSA_ENC_TYPE_','"'
   ),collapse='|');
-patterns_JSON <- paste0(c(
+patterns_JSON2num <- paste0(c(
   '_Yrs_Tbc_Usg','_Pcks_Pr_D'
 ),collapse='|');
+patterns_JSON <- paste0(c(
+  patterns_JSON2num #,'_info$'
+  ),collapse='|');
 #' Grep targets for column names that should not be part of analysis.
 #' (after already eliminating all the _info columns)
+#' TODO: _info are not valid JSON
 patterns_nonanalytic <- paste0(c(
   # can add more values and/or new lines as needed
   # just make sure there are no leading or trailing
@@ -69,6 +74,9 @@ df0[,vars_JSON] <- sapply(df0[,vars_JSON],jsonParse,simplify = F);
 #' separate var vector might be needed.
 vars_JSON2num <- vars_JSON;
 for(ii in vars_JSON2num) df0[[paste0(ii,'_num')]] <- dfListExtract(df0[[ii]],'nv');
+
+#' Expand the code-list columns
+
 
 #' Remove info columns, retaining which ones they are in the `vars_noninfo` variable.
 df1 <- df0[ , vars_noninfo <- grep("_info$", names(df0),inv=T,val=T)];
