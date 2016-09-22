@@ -211,7 +211,7 @@ df0cls$nnonmissing <- grep('^nm_',names(df0),val=T);
 #' `data.frame` by setting the optional `returnDF` argument to `FALSE` and
 #' then inserting the columns of that `data.frame` into `df1` in a separate
 #' command. But this is a reasonably sized dataset.
-df0 <- findEvents(df0,cnames=df0cls$realvisit,);
+df0 <- findEvents(df0,cnames=df0cls$realvisit);
 #' Create a unique patient_num/visit-set combo `pn_vis`
 df0$pn_vis <- paste(df0[,df0cls$patid],df0$ids,sep=':');
 #' list-valued columns in df0, so we can avoid them breaking lastNonMissing()
