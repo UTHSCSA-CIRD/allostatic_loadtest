@@ -198,6 +198,10 @@ df0$nm_smoking <- with(df0cls,
 df0$nm_vitalslabs <- with(df0,nm_vitals+nm_labs);
 df0$nm_total <- with(df0,nm_vitalslabs+nm_diags+nm_smoking);
 df0cls$nnonmissing <- grep('^nm_',names(df0),val=T);
+
+df0cls$info <- intersect(names(df0),gsub('_num$','_info',df0cls$lab));
+#' Grep pattern for getting rid of instance numbers:
+# foo <- data.frame(sapply(df0[,df0cls$info],function(xx) gsub("\\'ix\\':\\[(\\'\\d+\\',{0,1})+\\],{0,1}","",xx),simplify=F))
 #' Find the variables with hopelessly few nonmissing values
 #' Hardcoding some new columns
 #' 
@@ -245,7 +249,7 @@ close(pb);
 #' save lists of column names in vectors prefixed by `vars_` and lists of column
 #' information in vectors prefixed by `meta_`.
 meta_nonmissing <- sapply(df2,function(xx) sum(!is.na(xx)));
-cbind(`Number Non Missing`=meta_nonmissing);
+#cbind(`Number Non Missing`=meta_nonmissing);
 #' We keep just the variables that have more non-missing values than the threshold
 #' set by `minnm`.
 vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm],keep)));
@@ -253,7 +257,7 @@ vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm],k
 
 #' Any crazy number of levels?
 meta_flevels <- sapply(df2[, vs(df2, "f")], function(xx) length(levels(xx)));
-cbind(sort(meta_flevels))
+#cbind(sort(meta_flevels))
 #' 
 #' # TODOs
 #' * DONE Use the `splitCodes()` function

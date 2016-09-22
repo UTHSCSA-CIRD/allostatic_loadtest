@@ -139,12 +139,12 @@ findEvents <- function(data,pattern,
 #' Parse \code{data} a vector of character variables in JSON format and return 
 #' a vector of list objects.
 #' @param data A character vector in JSON format.
-jsonParse <- function(xx,...){
+jsonParse <- function(xx,encl=c('[',']'),...){
   # TODO: error checking to make sure it's actually JSON
   # Lazy way to create a vectorized JSON parser
   jpfn <- Vectorize(fromJSON,USE.NAMES=F);
   # Now use it, after catching missing values
-  jpfn(paste0('[',ifelse(is.na(xx),'null',as.character(xx)),']'));
+  jpfn(paste0(encl[1],ifelse(is.na(xx),'null',as.character(xx)),encl[2]));
 }
 
 #' Iterate over a list of lists and from each list extract the element named by
