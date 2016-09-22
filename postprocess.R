@@ -211,22 +211,29 @@ df0cls$nnonmissing <- grep('^nm_',names(df0),val=T);
 #' `data.frame` by setting the optional `returnDF` argument to `FALSE` and
 #' then inserting the columns of that `data.frame` into `df1` in a separate
 #' command. But this is a reasonably sized dataset.
-df0 <- findEvents(df0,cnames=df0cls$realvisit);
+df0 <- findEvents(df0,cnames=df0cls$realvisit,);
 #' Create a unique patient_num/visit-set combo `pn_vis`
 df0$pn_vis <- paste(df0[,df0cls$patid],df0$ids,sep=':');
+#' list-valued columns in df0, so we can avoid them breaking lastNonMissing()
+df0cls$nonlists <- names(df0)[sapply(df0,is.atomic)];
 #' Update the nonanlytic list of column names
 df0cls$nonanalytic <- union(df0cls$nonanalytic,c('ids','indicators','pn_vis'));
 #' Identify the analytic variables
-vars_analytic <- grep(patterns_nonanalytic,names(df1),inv=T,val=T);
+#vars_analytic <- grep(patterns_nonanalytic,names(df1),inv=T,val=T);
 #' Create an empty `data.frame` with an identical column layout to `df1`
 #' Removing non-analytic columns
-df2 <- subset(df1,FALSE)[,vars_analytic,drop=F];
+df1 <- subset(df0,FALSE)[,df0cls$nonlists,drop=F];
+df1[seq_along(meta_unqpnvis <- unique(df0$pn_vis)),]<-NA;
 #' Iterate over `pn_vis` to create the collapsed `data.frame` populated with
 #' the last non-missing value of every column in the dataset. 
 #' This part takes a looong time:
-for(ii in 1:length(meta_unqpnvis <- unique(df1$pn_vis))){
-  df2[ii,] <- data.frame(lapply(df1[df1$pn_vis==meta_unqpnvis[ii],vars_analytic],lastNonMissing));
+pb <- txtProgressBar(min=0,max=length(meta_unqpnvis),style=3);
+for(ii in seq_along(meta_unqpnvis)){
+  setTxtProgressBar(pb,ii);
+  df1[ii,] <- data.frame(lapply(df0[df0$pn_vis==meta_unqpnvis[ii],df0cls$nonlists,drop=F],
+                                lastNonMissing));
 }
+close(pb);
 
 #' Sanity-checking units 
 #' Checking to see if any of the units of measurement will need converting later on.
