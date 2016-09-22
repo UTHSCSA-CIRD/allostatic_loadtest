@@ -69,7 +69,6 @@ correct <- function(xx, range, conv){
 # conv:          vector of unit conversion factors
 
    outliers <- findInterval(xx,range);
-   # browser();
    # those below the range will be 0, those within, 1, and those above will be 2
    # for each value in xx whose corresponding value in outliers is not 1
    # try multiplying by conv and stop with the first one that gives a value within the range
@@ -164,7 +163,7 @@ splitCodes <- function(xx,prefix='code_',...){
   xx <- factor(xx); 
   # find unique codes
   codes <- sort(unique(unlist(strsplit(levels(xx),','))));
-  out <- data.frame(sapply(codes,
+  out <- data.frame(sapply(trimws(codes),
                            function(yy) factor(grepl(paste0('\\b',yy,'\\b'),as.character(xx))),simplify=F));
   names(out) <- gsub('^X',prefix,names(out));
   out;
