@@ -24,6 +24,9 @@ mapsp <- read_csv('specialty_codes.csv', na = c("", "(null)"));
 datafile <- 'allo_04_allo_megaquery_v4.csv';
 #' Minimum number of non-missing values to remain in dataset
 minnm <- 4;
+#' Minimum number of visits for below which the specialty, enctype, or financial 
+#' class are binned together in the 'Other' category
+minvs <- 18;
 #' Screw it, here is an object to store all the patterns
 #' At runtime these will get collapsed by '|' to strings to be used as regexp 
 #' targets
@@ -134,7 +137,12 @@ for(ii in seq_along(df0cls$shortenlevels)){
                    'Prvdr_Spclt'=mapsp);
   .newnamesii <- paste0(.iiprf,
                         .mapii[match(substr(names(.iidf),6,100),.mapii$numcode),'shortname'][[1]]);
-  df0cls[[.iisuf]] <- names(.iidf) <- .newnamesii;
+  names(.iidf) <- .newnamesii;
+  df0cls[[paste0('toofew_',.iisuf)]] <- .fewvisii <- names(.iidf)[colSums(.iidf=='TRUE')<minvs];
+  .iidf[[paste0(.iiprf,'Other')]] <- factor(apply(.iidf[,.fewvisii,drop=F],1,
+                                                  function(xx) any(xx=='TRUE')));
+  .iidf[,.fewvisii] <- NULL;
+  df0cls[[.iisuf]] <- names(.iidf);
   df0<-cbind(df0,.iidf);
 }
 
@@ -187,6 +195,9 @@ df0$nm_smoking <- with(df0cls,
                        apply(df0[,intersect(smoking,numeric)],1,function(xx) sum(!is.na(xx)))
                        +
                          apply(df0[,intersect(smoking,twolvl)],1,function(xx) sum(xx=='TRUE')));
+df0$nm_vitalslabs <- with(df0,nm_vitals+nm_labs);
+df0$nm_total <- with(df0,nm_vitalslabs+nm_diags+nm_smoking);
+df0cls$nnonmissing <- grep('^nm_',names(df0),val=T);
 #' Find the variables with hopelessly few nonmissing values
 #' Hardcoding some new columns
 #' 
@@ -200,9 +211,11 @@ df0$nm_smoking <- with(df0cls,
 #' `data.frame` by setting the optional `returnDF` argument to `FALSE` and
 #' then inserting the columns of that `data.frame` into `df1` in a separate
 #' command. But this is a reasonably sized dataset.
-df0 <- findEvents(df0,df0cls$realvisit);
+df0 <- findEvents(df0,cnames=df0cls$realvisit);
 #' Create a unique patient_num/visit-set combo `pn_vis`
-df1$pn_vis <- paste(df1[[vars_patid]],df1$ids,sep=':');
+df0$pn_vis <- paste(df0[,df0cls$patid],df0$ids,sep=':');
+#' Update the nonanlytic list of column names
+df0cls$nonanalytic <- union(df0cls$nonanalytic,c('ids','indicators','pn_vis'));
 #' Identify the analytic variables
 vars_analytic <- grep(patterns_nonanalytic,names(df1),inv=T,val=T);
 #' Create an empty `data.frame` with an identical column layout to `df1`
@@ -235,18 +248,25 @@ vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm],k
 meta_flevels <- sapply(df2[, vs(df2, "f")], function(xx) length(levels(xx)));
 cbind(sort(meta_flevels))
 #' 
-#' # TODO:
-#' * Use the `splitCodes()` function
-#' * Write function for remapping certain codes to readable names
-#' * SMOKING_TOB_USE is another `splitCodes()` case
-#' * Remove department and just keep spec for Prvdr_Spclt, which makes it another splitCodes()
+#' # TODOs
+#' * DONE Use the `splitCodes()` function
+#' * DONE Write function for remapping certain codes to readable names
+#' * TODO: SMOKING_TOB_USE is another `splitCodes()` case, as is smokeless
+#' * DONE Remove department and just keep spec for Prvdr_Spclt, which makes it another splitCodes()
+#' * TODO: v023_Clr_Ur_5778_6_info is a code-valued lab, figure out how to catch and deal with these
+#' * TODO: Decide on an indicator for 'real' visits
+#' * TODO: finish collapsing the lab-only visits into subsequent office visits
+#' * TODO: boxplot or stripchart each lab against units and valueflags
+#' * TODO: Anderson-Gill format
+#' * TODO: catch and fix outliers
+#' * TODO: control patients!
 #' 
 #' # Questions to think about:
 #' 
 #' * In what cases to parse variables out of JSON vs. pre-separate them in query?
-#' * How to map `Prvdr_Spclt`, `Encntr_Tp`, and `Fncl_Cls`?
-#' * GENERIC_KUMC_PACK_PER_DAY: NVAL_NUM is the only informative field, TODO: write new rule
-#' * Ditto for GENERIC_KUMC_TOBACCO_USED_YEARS, but why is units still 'Packs'?
+#' * DONE How to map `Prvdr_Spclt`, `Encntr_Tp`, and `Fncl_Cls`?
+#' * DONE GENERIC_KUMC_PACK_PER_DAY: NVAL_NUM is the only informative field, TODO: write new rule
+#' * DONE Ditto for GENERIC_KUMC_TOBACCO_USED_YEARS, but why is units still 'Packs'?
 #' * Perhaps DataFinisher should also include `DEATH_DATE`?
 #' * How to plot this data?
 #' 

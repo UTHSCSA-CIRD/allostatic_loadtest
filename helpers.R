@@ -92,8 +92,18 @@ correct <- function(xx, range, conv){
 }
 
 
-lastNonMissing <- function(xx) 
-  if(all(is.na(xx))) return(NA) else return(last(na.omit(xx)));
+lastNonMissing <- function(xx,tfmethod=c('any','last'),listmethod=c('combine','last')){
+  tfmethod<-match.arg(tfmethod);
+  listmethod<-match.arg(listmethod);
+  if(all(is.na(xx))) return(NA);
+  if(is.logical(xx)) return(switch(tfmethod,
+                                   any=any(xx),
+                                   last=tail(na.omit(xx),1)));
+  if('FALSE' %in% toupper(levels(factor(xx)))) return(switch(tfmethod,
+                                                             any=any(toupper(na.omit(xx))!='FALSE'),
+                                                             last=tail(na.omit(xx),1)));
+  return(last(na.omit(xx)));
+}
 
 #' For data.frame `data` and column `name` (character) replace everything not 
 #' between lthresh and uthresh (numerics) with NA
