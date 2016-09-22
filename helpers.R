@@ -178,4 +178,24 @@ splitCodes <- function(xx,prefix='code_',...){
   names(out) <- gsub('^X',prefix,names(out));
   out;
 }
-#
+
+#' Take a factor and a named vector of regexps, evaluate the
+#' vector in the order given, and replace the matching levels
+#' of the factor with the names of the corresponding regexps
+#' Collapse all non-matching levels to 'N'
+#' The defaults are currently for extracting valueflag info
+mapLevels <- function(xx,
+                      map=c(LH="'vf':\\['H'\\].*'vf':\\['L'\\]|'vf':\\['L'\\].*'vf':\\['H'\\]",L="'vf':\\['L'\\]",H="'vf':\\['H'\\]"),
+                      other='N',exclude=NULL,...){
+  xx <- factor(xx,exclude=exclude);
+  stopifnot(is.character(map));
+  nm <- names(map);
+  if(length(unique(nm))<length(map)) {
+    nm<-names(map)<-make_names(seq_along(map));
+  }
+  lv<-levels(xx);
+  for(ii in nm) lv[grepl(map[ii],lv)] <- ii;
+  lv[!grepl(paste0('^',nm,'$',collapse='|'),lv)]<-other;
+  levels(xx) <- lv;
+  xx;
+}
