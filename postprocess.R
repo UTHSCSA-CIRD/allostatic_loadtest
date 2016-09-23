@@ -21,7 +21,7 @@ mapsp <- read_csv('specialty_codes.csv', na = c("", "(null)"));
 #' # Set session variables
 #' 
 #' The name of the raw data file
-datafile <- 'allo_04_allo_megaquery_v4.csv';
+datafile <- 'allo_05.csv';
 #' Minimum number of non-missing values to remain in dataset
 minnm <- 4;
 #' Minimum number of visits for below which the specialty, enctype, or financial 
@@ -260,13 +260,11 @@ df0cls$nonanalytic <- union(df0cls$nonanalytic,c('ids','indicators','pn_vis'));
 #' censoring indicators. The catch is, if after doing that a patient still has 
 #' inactive malignant prostate, we have to weed them out too, because that means
 #' their first PC diagnosis in the EMR record is not their first PC diagnosis
-split(df0,df0$patient_num) 
-  %>% lapply(function(xx){
+split(df0,df0$patient_num) %>% lapply(function(xx){
     .xxmin<-min(which(xx$v000_Mlgnt_prst=='TRUE'));
     if(is.infinite(.xxmin)||any(xx$v000_Mlgnt_prst_inactive[1:.xxmin]=='TRUE')) return(NULL);
     out<-xx[1:.xxmin,];out$c<-c(rep(0,.xxmin-1),1);out;
-    })
-  %>% do.call(rbind,.) -> agdf0;
+    }) %>% do.call(rbind,.) -> agdf0;
 #' TODO: a lot of patients and visits have been dropped. Might need to re-run from
 #' the start on agdf0 to find what the data problems, etc. are in this dataset.
 #' Identify the analytic variables
