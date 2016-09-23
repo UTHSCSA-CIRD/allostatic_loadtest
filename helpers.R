@@ -199,3 +199,57 @@ mapLevels <- function(xx,
   levels(xx) <- lv;
   xx;
 }
+
+#' Interactive reporting tool. The idea is to quickly review a large number
+#' of automatically generated plots. Definitely too much hardcoding to the 
+#' units and valueflags current case, but it's a start.
+feedbackOMatic <- function(index,logobj,xpr,env=parent.frame(),...){
+  lgo <-as.character(substitute(logobj));
+  xpr <- substitute(xpr);
+  if(is.null(env[[lgo]])) env[[lgo]]<-list();
+  stopifnot(is.recursive(env[[lgo]]),is.atomic(index));
+  env[[lgo]][[index]]<-list();
+  env[['.vs']]<-origvars<-list(log=F,lim=NA);
+  q1 <- q2 <- 0;
+  while(trimws(q1)!=""){
+    cat('If there are outliers preventing you from seeing the 
+distribution, please type the number at which you would
+like the corresponding scale to be cut off. Type "log"
+to toggle log scale and reset to remove cutoffs. Hit 
+carriage return to accept scaling and move on.
+');
+    eval(xpr);
+    q1 <- readline('log, reset, or a numeric value. Blank line to move on: ');
+    if(trimws(tolower(q1))=='log') {
+      env[['.vs']][['log']] <- !env[['.vs']][['log']];
+      env[['.vs']][['lim']] <- NA;
+    } else {
+      print('not log case');
+      if(trimws(tolower(q1))=='reset'){
+        env[['.vs']] <- origvars
+      } else {
+        if(!is.na(q1a<-as.numeric(q1))) {
+          env[['.vs']][['lim']]<-q1a;
+        }
+      }
+    }
+    #print(env[['.vs']]);
+  }
+  env[[lgo]][[index]]$q1<-env[['.vs']];
+  while(trimws(q2)!=""){
+    cat('
+Do some levels have negligible numers of values? Type 
+their names each on a separate line and input an empty 
+carriage return when you are done. 
+');
+    q2 <- readline('Name of group, blank line to move on: ');
+    env[[lgo]][[index]]$q2 <- c(env[[lgo]][[index]]$q2,q2);
+  }
+  cat('
+If the distributions are not roughly similar, please type "y" 
+with an optional explanation. Otherwise send an empty carriage
+return.
+');
+  env[[lgo]][[index]]$q3 <- readline('y or comment or blank line: ');
+  #print(env[[lgo]][[index]]);
+}

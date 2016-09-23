@@ -209,8 +209,35 @@ df0cls$vfinfo <- df0cls$info[sapply(df0[,df0cls$info],function(xx)
   any(grepl("'vf':",levels(factor(xx)))))];
 df0cls$vf <- gsub('_info$','_vf',df0cls$vfinfo);
 #' Add the valueflag columns!
-df0[,df0cls$vf] <- data.frame(sapply(df0[,df0cls$vfinfo],mapLevels,simplify = F));
-#' 
+df0[,df0cls$vf] <- data.frame(sapply(df0[,df0cls$vfinfo],mapLevels,
+                                     simplify = F));
+#' Review values
+for(ii in df0cls$vf){
+  .iin<-gsub('_vf$','_num',ii); 
+  if(is.numeric(df0[[.iin]])&&length(levels(df0[[ii]]))>1) 
+    feedbackOMatic(ii,vffb,
+                   stripchart(formula(paste(.iin,'~',ii)),
+                              df0,method='jitter',pch='.',
+                              cex=2.5,col='#FF444430',ver=T,las=2,
+                              ylim=if(is.na(.vs$lim)) c() else c(0,.vs$lim)));
+}
+
+#' Define unit columns
+df0cls$unit<-setdiff(intersect(gsub('_num$','_unit',grep('_num$',names(df0),val=T)),
+                               names(df0)),df0cls$toofew);
+#' Make them into factors
+df0[,df0cls$unit]<-data.frame(sapply(df0[,df0cls$unit],factor,exclude=NULL,
+                                     simplify=F));
+#' Try out the unit plots.
+for(ii in df0cls$unit){
+  .iin<-gsub('_unit$','_num',ii); 
+  if(is.numeric(df0[[.iin]])&&length(levels(df0[[ii]]))>1) 
+    feedbackOMatic(ii,unitfb,
+                   stripchart(formula(paste(.iin,'~',ii)),
+                              df0,method='jitter',pch='.',
+                              cex=2.5,col='#FF444430',ver=T,las=2,
+                              ylim=if(is.na(.vs$lim)) c() else c(0,.vs$lim)));
+}
 #' DF_TODO: Put this into DataFinisher, many projects will need this
 #' TODO: Oops, forgot to pull vitals! Will need to re-run. :-()
 #df1$v039_Wght_lbs_num  <- df1$v039_Wght_oz_num * 0.0625 # Convert to pounds.
@@ -228,6 +255,20 @@ df0$pn_vis <- paste(df0[,df0cls$patid],df0$ids,sep=':');
 df0cls$nonlists <- names(df0)[sapply(df0,is.atomic)];
 #' Update the nonanlytic list of column names
 df0cls$nonanalytic <- union(df0cls$nonanalytic,c('ids','indicators','pn_vis'));
+#' Create Anderson-Gill format table for time-to-event analysis. Basically
+#' for each patient, stop on their first diagnosis and create column of 0,1
+#' censoring indicators. The catch is, if after doing that a patient still has 
+#' inactive malignant prostate, we have to weed them out too, because that means
+#' their first PC diagnosis in the EMR record is not their first PC diagnosis
+split(df0,df0$patient_num) 
+  %>% lapply(function(xx){
+    .xxmin<-min(which(xx$v000_Mlgnt_prst=='TRUE'));
+    if(is.infinite(.xxmin)||any(xx$v000_Mlgnt_prst_inactive[1:.xxmin]=='TRUE')) return(NULL);
+    out<-xx[1:.xxmin,];out$c<-c(rep(0,.xxmin-1),1);out;
+    })
+  %>% do.call(rbind,.) -> agdf0;
+#' TODO: a lot of patients and visits have been dropped. Might need to re-run from
+#' the start on agdf0 to find what the data problems, etc. are in this dataset.
 #' Identify the analytic variables
 #vars_analytic <- grep(patterns_nonanalytic,names(df1),inv=T,val=T);
 #' Create an empty `data.frame` with an identical column layout to `df1`
@@ -258,7 +299,8 @@ meta_nonmissing <- sapply(df1,function(xx) sum(!is.na(xx)));
 #cbind(`Number Non Missing`=meta_nonmissing);
 #' We keep just the variables that have more non-missing values than the threshold
 #' set by `minnm`.
-vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm],keep)));
+vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm]
+                                 ,df0cls$keep)));
 #df1 <- df1[,vars_enoughvals];
 
 #' Any crazy number of levels?
@@ -266,6 +308,11 @@ meta_flevels <- sapply(df1[, vs(df1, "f")], function(xx) length(levels(xx)));
 #cbind(sort(meta_flevels))
 #' 
 #' # TODOs
+#' * TODO:Write up questions for collaborators:
+#' ** Do we use the L/H valueflags as-is or use them as guidelines to recode some of the overlapping values?
+#' ** What is our definition of a real visit? Office Visit code? Existence of vitals (how many?). Something else?
+#' ** How to deal with unit differences?
+#' ** How to construct score?
 #' * DONE Use the `splitCodes()` function
 #' * DONE Write function for remapping certain codes to readable names
 #' * TODO: SMOKING_TOB_USE is another `splitCodes()` case, as is smokeless
@@ -273,9 +320,9 @@ meta_flevels <- sapply(df1[, vs(df1, "f")], function(xx) length(levels(xx)));
 #' * TODO: v023_Clr_Ur_5778_6_info is a code-valued lab, figure out how to catch and deal with these
 #' * TODO: Decide on an indicator for 'real' visits
 #' * TODO: finish collapsing the lab-only visits into subsequent office visits
-#' * TODO: boxplot or stripchart each lab against units and valueflags
-#' * TODO: Anderson-Gill format
-#' * TODO: catch and fix outliers
+#' * DONE boxplot or stripchart each lab against units and valueflags
+#' * DONE Anderson-Gill format
+#' * TODO: ~catch~ and fix outliers
 #' * TODO: control patients!
 #' 
 #' # Questions to think about:
