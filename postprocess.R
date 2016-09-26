@@ -19,7 +19,9 @@ mapen <- read_csv('enctypes.csv', na = c("", "(null)"));
 mapsp <- read_csv('specialty_codes.csv', na = c("", "(null)"));
 
 #' # Set session variables
-#' 
+#' Whether to do interactive diagnostic plots for units and valueflags, 
+#' respectively
+plotunits <- F; plotvfs <- F;
 #' The name of the raw data file
 datafile <- 'allo_05.csv';
 #' Minimum number of non-missing values to remain in dataset
@@ -66,7 +68,8 @@ rxp <- list(
                      # but will deal with that later
                      '_Smkng_Tbc_Us$','_Smkls_Tbc$'),
   keep =             '_Dcsd_pr_SS$', # always keep column even if many missing values
-  patid =            '^patient_num$' # patient ID column (deidentified)
+  patid =            '^patient_num$', # patient ID column (deidentified)
+  force2factor =     '^patient_num$' # patient ID column (deidentified)
 );
 
 #' This one is separate because it's done to column values, not column names
@@ -139,8 +142,8 @@ for(ii in seq_along(df0cls$shortenlevels)){
                         .mapii[match(substr(names(.iidf),6,100),.mapii$numcode),'shortname'][[1]]);
   names(.iidf) <- .newnamesii;
   df0cls[[paste0('toofew_',.iisuf)]] <- .fewvisii <- names(.iidf)[colSums(.iidf=='TRUE')<minvs];
-  .iidf[[paste0(.iiprf,'Other')]] <- factor(apply(.iidf[,.fewvisii,drop=F],1,
-                                                  function(xx) any(xx=='TRUE')));
+  .iidf[[paste0(.iiprf,'Other')]] <- apply(.iidf[,.fewvisii,drop=F],1,
+                                                  function(xx) any(xx=='TRUE'));
   .iidf[,.fewvisii] <- NULL;
   df0cls[[.iisuf]] <- names(.iidf);
   df0<-cbind(df0,.iidf);
@@ -181,11 +184,11 @@ df0cls$numeric <- c(df0cls$numeric,'age_years');
 #' Note that since we rely on column types, this has to run after the numeric
 #' coercions above are finished. Otherwise it will catch some of the numeric 
 #' columns.
-df0cls$factor <- setdiff(vs(df0,'c'),df0cls$nonanalytic);
+df0cls$factor <- setdiff(c(df0cls$force2factor,vs(df0,'c')),df0cls$nonanalytic);
 df0[,df0cls$factor] <- sapply(df0[,df0cls$factor],factor,simplify = F);
 #' Collapse certain variables to two levels
 df0[,df0cls$twolvl] <- data.frame(lapply(df0[,df0cls$twolvl],
-                                         function(xx) factor(!is.na(xx))));
+                                         function(xx) !is.na(xx)));
 
 #' Total up nonmissing vitals, labs, diags, and smoking
 df0$nm_vitals <- apply(df0[,df0cls$vitals],1,function(xx) sum(!is.na(xx)));
@@ -199,7 +202,6 @@ df0$nm_vitalslabs <- with(df0,nm_vitals+nm_labs);
 df0$nm_total <- with(df0,nm_vitalslabs+nm_diags+nm_smoking);
 df0cls$nnonmissing <- grep('^nm_',names(df0),val=T);
 
-df0cls$info <- intersect(names(df0),gsub('_num$','_info',df0cls$lab));
 #' Grep pattern for getting rid of instance numbers:
 # foo <- data.frame(sapply(df0[,df0cls$info],function(xx) gsub("\\'ix\\':\\[(\\'\\d+\\',{0,1})+\\],{0,1}","",xx),simplify=F))
 #' Info columns
@@ -212,15 +214,16 @@ df0cls$vf <- gsub('_info$','_vf',df0cls$vfinfo);
 df0[,df0cls$vf] <- data.frame(sapply(df0[,df0cls$vfinfo],mapLevels,
                                      simplify = F));
 #' Review values
-for(ii in df0cls$vf){
-  .iin<-gsub('_vf$','_num',ii); 
-  if(is.numeric(df0[[.iin]])&&length(levels(df0[[ii]]))>1) 
-    feedbackOMatic(ii,vffb,
-                   stripchart(formula(paste(.iin,'~',ii)),
-                              df0,method='jitter',pch='.',
-                              cex=2.5,col='#FF444430',ver=T,las=2,
-                              ylim=if(is.na(.vs$lim)) c() else c(0,.vs$lim)));
-}
+if(plotvfs)
+  for(ii in df0cls$vf){
+    .iin<-gsub('_vf$','_num',ii); 
+    if(is.numeric(df0[[.iin]])&&length(levels(df0[[ii]]))>1) 
+      feedbackOMatic(ii,vffb,
+                     stripchart(formula(paste(.iin,'~',ii)),
+                                df0,method='jitter',pch='.',
+                                cex=2.5,col='#FF444430',ver=T,las=2,
+                                ylim=if(is.na(.vs$lim)) c() else c(0,.vs$lim)));
+  }
 
 #' Define unit columns
 df0cls$unit<-setdiff(intersect(gsub('_num$','_unit',grep('_num$',names(df0),val=T)),
@@ -229,15 +232,16 @@ df0cls$unit<-setdiff(intersect(gsub('_num$','_unit',grep('_num$',names(df0),val=
 df0[,df0cls$unit]<-data.frame(sapply(df0[,df0cls$unit],factor,exclude=NULL,
                                      simplify=F));
 #' Try out the unit plots.
-for(ii in df0cls$unit){
-  .iin<-gsub('_unit$','_num',ii); 
-  if(is.numeric(df0[[.iin]])&&length(levels(df0[[ii]]))>1) 
-    feedbackOMatic(ii,unitfb,
-                   stripchart(formula(paste(.iin,'~',ii)),
-                              df0,method='jitter',pch='.',
-                              cex=2.5,col='#FF444430',ver=T,las=2,
-                              ylim=if(is.na(.vs$lim)) c() else c(0,.vs$lim)));
-}
+if(plotunits)
+  for(ii in df0cls$unit){
+    .iin<-gsub('_unit$','_num',ii); 
+    if(is.numeric(df0[[.iin]])&&length(levels(df0[[ii]]))>1) 
+      feedbackOMatic(ii,unitfb,
+                     stripchart(formula(paste(.iin,'~',ii)),
+                                df0,method='jitter',pch='.',
+                                cex=2.5,col='#FF444430',ver=T,las=2,
+                                ylim=if(is.na(.vs$lim)) c() else c(0,.vs$lim)));
+  }
 #' DF_TODO: Put this into DataFinisher, many projects will need this
 #' TODO: Oops, forgot to pull vitals! Will need to re-run. :-()
 #df1$v039_Wght_lbs_num  <- df1$v039_Wght_oz_num * 0.0625 # Convert to pounds.

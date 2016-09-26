@@ -135,6 +135,37 @@ findEvents <- function(data,pattern,
   return(out[,result]);
 }
 
+#' Find 1st ocurrence where \code{expr} returns \code{TRUE} (i.e. the event) and 
+#' obtain the following vectors: \code{time} (time elapsed since first time, 
+#' i.e. the smallest value of \code{timevar} subtracted from the rest), 
+#' \code{tevent} (time centered on the event, so that it is a negative value 
+#' before and a positive value afterward), and \code{event} (0 before event, 1
+#' during event, and 2 after the event).
+#' Note: sorts the data by the timevar
+#' Note: for some reason blows away the NA levels of factors that have them
+#' @param data A \code{data.frame} (required)
+#' @param expr An expression that will be evaluated in the scope of \code{data} (required)
+#' @param timevar An atomic \code{character} vector with the name of the column in \code{data} that will be treated as the time variable. Should be of a data-type that supports subtraction. Default: 'age_at_visit_days'
+#' @param retuls A \code{character} vector of what results to return. One or more of \code{time}, \code{tevent}, or \code{event}
+#' @param returnDF Should the selected result be returned as part of the original \code{data.frame} (TRUE, default) or by itself?
+beforeAfter <- function(data,expr,
+                        timevar='age_at_visit_days',
+                        result=c('time','tevent','event'),
+                        returnDF=TRUE){
+  # check for valid input and while at it, create the tt time variable for internal use
+  stopifnot(is.data.frame(data)&&is.atomic(timevar)&&!is.null(tt<-data[[timevar]]));
+  expr <- substitute(expr);
+  # order the data in chronological order, in case this isn't already done
+  data <- data[order(tt),]; tt <- sort(tt);
+  ev <- match(T,eval(expr,envir=data));
+  event <- c(rep(0,ev-1),1,rep(2,length(tt)-ev));
+  time <- tt - min(tt);
+  tevent <- time - time[ev];
+  out <- data.frame(time,tevent,event)[,result];
+  if(!returnDF) return(out);
+  data[,result]<-out;
+  data;
+}
 
 #' Parse \code{data} a vector of character variables in JSON format and return 
 #' a vector of list objects.
@@ -253,3 +284,4 @@ return.
   env[[lgo]][[index]]$q3 <- readline('y or comment or blank line: ');
   #print(env[[lgo]][[index]]);
 }
+
