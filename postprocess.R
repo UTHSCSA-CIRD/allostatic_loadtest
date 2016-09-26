@@ -38,7 +38,7 @@ rxp <- list(
   # commas. Note that for the prostate cancer 
   # sex_cd is non-analytic, but for most datasets
   # this will not be the case
-  shortenlevels =  c('_Prvdr_Spclt$','_Encntr_Tp$','_Fncl_Cls$'),
+  shortenlevels =  c('_Prvdr_Spclt$','_Encntr_Tp$','_Fncl_Cls$','_Ethnct$'),
   # Grep targets for columns that are actually blobs of JSON
   JSON2num =       c('_Yrs_Tbc_Usg$','_Pcks_Pr_D$'),
   # At the moment it happens that both of the JSON variables also have numeric 
@@ -77,6 +77,7 @@ pattern_removefromvals <- paste0(c('"GENERIC_UTHSCSA_FINCLASS_',
                                    '"GENERIC_UTHSCSA_ENC_TYPE_',
                                    '"GENERIC_UTHSCSA_VISITDETAIL_DEPT_\\d+',
                                    '"GENERIC_UTHSCSA_VISITDETAIL_SPEC_',
+                                   'GENERIC_DEM_ETHNICITY_',
                                    '"'),collapse='|');
 
 

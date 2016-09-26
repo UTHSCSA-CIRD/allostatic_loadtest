@@ -205,7 +205,8 @@ splitCodes <- function(xx,prefix='code_',...){
   # find unique codes
   codes <- sort(unique(unlist(strsplit(levels(xx),','))));
   out <- data.frame(sapply(trimws(codes),
-                           function(yy) factor(grepl(paste0('\\b',yy,'\\b'),as.character(xx))),simplify=F));
+                           #function(yy) factor(grepl(paste0('\\b',yy,'\\b'),as.character(xx))),simplify=F));
+                           function(yy) grepl(paste0('\\b',yy,'\\b'),as.character(xx)),simplify=F));
   names(out) <- gsub('^X',prefix,names(out));
   out;
 }
