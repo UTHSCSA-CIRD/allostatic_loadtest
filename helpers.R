@@ -154,7 +154,7 @@ beforeAfter <- function(data,expr,
                         returnDF=TRUE){
   # check for valid input and while at it, create the tt time variable for internal use
   stopifnot(is.data.frame(data)&&is.atomic(timevar)&&!is.null(tt<-data[[timevar]]));
-  expr <- substitute(expr);
+  expr <- substitute(expr); expr; browser();
   # order the data in chronological order, in case this isn't already done
   data <- data[order(tt),]; tt <- sort(tt);
   ev <- match(T,eval(expr,envir=data));
@@ -194,6 +194,60 @@ dfListExtract <- function(xx,item,type=c('last','first','unique','all')){
     out <-fn(unlist(lapply(yy,`[[`,item)));
     ifelse(is.null(out),NA,out);
     });
+}
+
+missingLike <- function(xx,tests=alist(
+  is.null(xx),
+  is.logical(xx)&&!any(xx,na.rm=T),
+  all(xx %in% c('FALSE',NA)),
+  all(xx %in% c('N',NA)),
+  all(xx %in% c('',NA)),
+  all(xx %in% c(NA,0)),
+  is.null(unlist(xx)),
+  all(is.na(unlist(xx))),
+  length(unique(xx))<2
+)){
+  for(ii in tests) if(eval(ii)) return(TRUE);
+  return(FALSE);
+}
+
+nonmissingLike <- function(xx,na.equivs=c('FALSE')){
+  return(switch(mode(xx),
+         logical=!is.na(xx)&xx,
+         numeric=!is.na(xx)&xx!=0,
+         factor=!is.na(xx)&!xx%in%na.equivs,
+         list=sapply(xx,function(yy) {!is.null(oo<-unlist(yy))&&any(!is.na(oo))}),
+         !is.na(xx)
+         ));
+}
+
+deflateDF <- function(data,include=names(data),exclude=c()){
+  stopifnot(is.data.frame(data),is.character(include)||is.numeric(include)||is.logical(include));
+  mask <- sapply(data,nonmissingLike);
+  rowkeep <- rowSums(mask[,setdiff(include,exclude)])>0;
+  colkeep <- colSums(mask)>0;
+  return(data[rowkeep,colkeep]);
+}
+
+#'
+eventPlot <- function(data,time='tevent',series='patient_num',pch='|',col='black',
+                      cex=.5,xlim=c(),event.x=0,event.col='red',event.lwd=2,
+                      series.y=as.numeric(factor(data[[series]])),series.col='gray',series.lwd=1,
+                      time.x=data[[time]],time.by=365.25,time.col='gray',time.lwd=1,
+                      add=F,offset=0){
+  time.tx <- unique(time.x); series.tx <- unique(series.y);
+  if(!add){
+    # blank plot
+    plot(ylim=c(0,max(series.tx)*1.1),xlim=range(time.tx),type='n');
+    # x gridlines, years by default
+    abline(v=seq(min(time.tx),max(time.tx),by=time.by),col=time.col,lwd=time.lwd);
+    # y gridlines, e.g. patients
+    abline(h=series.tx,col=series.col,lwd=series.lwd);
+    # the event line
+    abline(v=event.x,col=event.col,lwd=event.lwd);
+    
+  } 
+  points(I(offset+series.y)~time.x,pch=pch,col=col,cex=cex);
 }
 
 #' Take a vector of codes, sometimes more than one that are comma separated

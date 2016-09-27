@@ -29,6 +29,10 @@ minnm <- 4;
 #' Minimum number of visits for below which the specialty, enctype, or financial 
 #' class are binned together in the 'Other' category
 minvs <- 18;
+#' Date range
+daterange <- as.POSIXct(as.Date(c(
+  '2006-01-01','2016-06-01'
+)));
 #' Screw it, here is an object to store all the patterns
 #' At runtime these will get collapsed by '|' to strings to be used as regexp 
 #' targets
@@ -39,6 +43,7 @@ rxp <- list(
   # sex_cd is non-analytic, but for most datasets
   # this will not be the case
   shortenlevels =  c('_Prvdr_Spclt$','_Encntr_Tp$','_Fncl_Cls$','_Ethnct$'),
+  splitlevels =    c('_Prvdr_Spclt$','_Encntr_Tp$','_Fncl_Cls$'),
   # Grep targets for columns that are actually blobs of JSON
   JSON2num =       c('_Yrs_Tbc_Usg$','_Pcks_Pr_D$'),
   # At the moment it happens that both of the JSON variables also have numeric 
@@ -69,7 +74,10 @@ rxp <- list(
                      '_Smkng_Tbc_Us$','_Smkls_Tbc$'),
   keep =             '_Dcsd_pr_SS$', # always keep column even if many missing values
   patid =            '^patient_num$', # patient ID column (deidentified)
-  force2factor =     '^patient_num$' # patient ID column (deidentified)
+  force2factor =     '^patient_num$',
+  onco =             'Onco',
+  pcp =              '(Family|Geriatric|Internal)_Medicine$',
+  event =            '_Mlgnt_prst$'
 );
 
 #' This one is separate because it's done to column values, not column names
@@ -81,6 +89,8 @@ pattern_removefromvals <- paste0(c('"GENERIC_UTHSCSA_FINCLASS_',
                                    '"'),collapse='|');
 
 
+event_definition <- "!is.na(%s)";
+
 #' These variables should always be factors, even if they look like numbers.
 #vars_factor <- c(vars_patid);
 #' 
@@ -89,14 +99,29 @@ pattern_removefromvals <- paste0(c('"GENERIC_UTHSCSA_FINCLASS_',
 #' Variables to later convert to 2-level factors
 
 #' Read in Data and Review It
-#' df0 will be where the raw data is read in
-df0 <- read_csv(datafile, na = c("", "(null)")
+#' dfraw will be where the raw data is read in
+dfraw <- read_csv(datafile, na = c("", "(null)")
                 ,locale = locale(date_format="%m/%d/%y"));
+
+event_expression <- parse(text=sprintf(event_definition,
+                                       grep(rxp$event,names(dfraw),val=T)[1]))[[1]]; 
+
+#' `deflateDF()` removes rows and columns that are empty (perhaps as a result of a 
+#' subsetting operation), and pipe through `beforeAfter()` in order to add 
+#' several transformations of the time variable and encode events for Anderson 
+#' Gill format.
+#' Meh, line 116 is broken. How to dynamically pass event variable?
+subset(dfraw,start_date>daterange[1]&start_date<daterange[2]) %>% 
+  deflateDF(names(dfraw)[-c(1:7)]) %>% 
+  beforeAfter(event_expression) -> df0;
+
 #' Create column name lists for df0
 df0cls <- sapply(rxp,function(xx) 
   grep(paste0(xx,collapse='|'),names(df0),val=T),simplify=F);
 
 df0cls$global <- names(df0)[1:7];
+#' Original variables
+df0cls$origvars <- setdiff(names(df0),df0cls$global);
 #' Find the variables with too few nonmissing values
 df0cls$toofew <- setdiff(names(df0)[sapply(df0,function(xx) sum(!is.na(xx))<minnm)],
                          df0cls$keep);
@@ -132,8 +157,8 @@ v_listsuf <- substr(df0cls$shortenlevels,6,100);
 #' same columns as in vars_shortenlevels, but in future datasets
 #' this may change. Really need to fix this in DF
 #' Holy shit is this messy.
-for(ii in seq_along(df0cls$shortenlevels)){
-  .iiname <- df0cls$shortenlevels[ii]; .iiprf <- v_listprf[ii]; .iisuf <- v_listsuf[ii];
+for(ii in seq_along(df0cls$splitlevels)){
+  .iiname <- df0cls$splitlevels[ii]; .iiprf <- v_listprf[ii]; .iisuf <- v_listsuf[ii];
   .iidf <- splitCodes(df0[[.iiname]],.iiprf);
   .mapii <- switch(.iisuf,
                    'Encntr_Tp'= mapen,
@@ -150,7 +175,8 @@ for(ii in seq_along(df0cls$shortenlevels)){
   df0<-cbind(df0,.iidf);
 }
 
-
+df0cls$onco <- grep(rxp$onco,df0cls$Prvdr_Spclt,val=T);
+df0cls$pcp <- grep(rxp$pcp,df0cls$Prvdr_Spclt,val=T);
 #' Remove info columns, retaining which ones they are in the `vars_noninfo` variable.
 #df1 <- df0[ , vars_noninfo <- grep("_info$", names(df0),inv=T,val=T)];
 
@@ -265,11 +291,11 @@ df0cls$nonanalytic <- union(df0cls$nonanalytic,c('ids','indicators','pn_vis'));
 #' censoring indicators. The catch is, if after doing that a patient still has 
 #' inactive malignant prostate, we have to weed them out too, because that means
 #' their first PC diagnosis in the EMR record is not their first PC diagnosis
-split(df0,df0$patient_num) %>% lapply(function(xx){
-    .xxmin<-min(which(xx$v000_Mlgnt_prst=='TRUE'));
-    if(is.infinite(.xxmin)||any(xx$v000_Mlgnt_prst_inactive[1:.xxmin]=='TRUE')) return(NULL);
-    out<-xx[1:.xxmin,];out$c<-c(rep(0,.xxmin-1),1);out;
-    }) %>% do.call(rbind,.) -> agdf0;
+# split(df0,df0$patient_num) %>% lapply(function(xx){
+#     .xxmin<-min(which(xx$v000_Mlgnt_prst=='TRUE'));
+#     if(is.infinite(.xxmin)||any(xx$v000_Mlgnt_prst_inactive[1:.xxmin]=='TRUE')) return(NULL);
+#     out<-xx[1:.xxmin,];out$c<-c(rep(0,.xxmin-1),1);out;
+#     }) %>% do.call(rbind,.) -> agdf0;
 #' TODO: a lot of patients and visits have been dropped. Might need to re-run from
 #' the start on agdf0 to find what the data problems, etc. are in this dataset.
 #' Identify the analytic variables
