@@ -112,7 +112,7 @@ event_expression <- parse(text=sprintf(event_definition,
 #' Gill format.
 #' Meh, line 116 is broken. How to dynamically pass event variable?
 subset(dfraw,start_date>daterange[1]&start_date<daterange[2]) %>% 
-  deflateDF(names(dfraw)[-c(1:7)]) %>% 
+  deflateDF(names(dfraw)[-c(1:7)],output='df') %>% 
   beforeAfter(event_expression) -> df0;
 
 #' Create column name lists for df0

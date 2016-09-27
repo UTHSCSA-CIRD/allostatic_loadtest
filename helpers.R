@@ -221,12 +221,32 @@ nonmissingLike <- function(xx,na.equivs=c('FALSE')){
          ));
 }
 
-deflateDF <- function(data,include=names(data),exclude=c()){
+deflateDF <- function(data,include=names(data),exclude=c(),spliton='patient_num',
+                      sumThresh=0,meanThresh=0,
+                      sumSplThresh=sumThresh,meanSplThresh=meanThresh,
+                      droprows=T,output=c('report','df')){
   stopifnot(is.data.frame(data),is.character(include)||is.numeric(include)||is.logical(include));
-  mask <- sapply(data,nonmissingLike);
-  rowkeep <- rowSums(mask[,setdiff(include,exclude)])>0;
-  colkeep <- colSums(mask)>0;
-  return(data[rowkeep,colkeep]);
+  output <- match.arg(output,several.ok = T);
+  mask <- sapply(data,nonmissingLike); 
+  cols <- intersect(names(data),setdiff(include,exclude));
+  rowkeep <- if(droprows) rowSums(mask[,cols])>0 else T;
+  dflmask <- mask[rowkeep,];
+  rep <- data.frame(allsums=colSums(dflmask,na.rm = T),allmeans=colMeans(dflmask,na.rm = T));
+  colkeep <- rep$allsums > sumThresh & rep$allmeans > meanThresh;
+  if(!is.na(spliton)) {
+    data.frame(dflmask) %>% split(data[[spliton]][rowkeep]) %>% lapply(apply,2,any,na.rm=T) %>% 
+      do.call(rbind,.) -> splmask;
+    rep$splsums <- colSums(splmask,na.rm=T); rep$splmeans <- colMeans(splmask,na.rm=T);
+    colkeep <- colkeep & rep$splsums > sumSplThresh & rep$splmeans > meanSplThresh;
+  }
+  if(output=='report') return(rep);
+  if('df'%in%output){
+    # deflate the dataframe
+    data <- data[rowkeep,colkeep]; 
+    if(output=='df') return(data);
+    rep <- rep[colkeep,];
+    return(list(data=data,report=rep));
+  }
 }
 
 #'
