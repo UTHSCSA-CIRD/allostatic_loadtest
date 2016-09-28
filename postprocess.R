@@ -78,7 +78,8 @@ rxp <- list(
   force2factor =     '^patient_num$',
   onco =             'Onco',
   pcp =              '(Family|Geriatric|Internal)_Medicine$',
-  event =            '_Mlgnt_prst$'
+  event =            '_Mlgnt_prst$',
+  event_preexisting ='_Mlgnt_prst_inactive$'
 );
 
 #' This one is separate because it's done to column values, not column names
@@ -104,8 +105,11 @@ event_definition <- "!is.na(%s)";
 dfraw <- read_csv(datafile, na = c("", "(null)")
                 ,locale = locale(date_format="%m/%d/%y"));
 
-event_expression <- parse(text=sprintf(event_definition,
-                                       grep(rxp$event,names(dfraw),val=T)[1]))[[1]]; 
+rxp$event %>% lazygrep(names(dfraw)) %>% sprintf(event_definition,.) %>% 
+  paste0(collapse='|') %>% parse(text=.) %>% `[[`(1) -> event_expression;
+
+rxp$event_preexisting %>% lazygrep(names(dfraw)) %>% sprintf(event_definition,.) %>% 
+  paste0(collapse='|') %>% parse(text=.) %>% `[[`(1) -> preexisting_expression;
 
 #' Create column name lists for df0
 df0cls <- sapply(rxp,lazygrep,names(dfraw),simplify=F);
@@ -114,10 +118,7 @@ df0cls <- sapply(rxp,lazygrep,names(dfraw),simplify=F);
 #' subsetting operation), and pipe through `beforeAfter()` in order to add 
 #' several transformations of the time variable and encode events for Anderson 
 #' Gill format.
-subset(dfraw,start_date>daterange[1]&start_date<daterange[2]) %>% 
-  split(`[`(.,grep(rxp$patid,names(.)))) %>% 
-  lapply(beforeAfter,event_expression) %>% 
-  bind_rows -> df0;
+df0 <- subset(dfraw,start_date>daterange[1]&start_date<daterange[2]);
 
 #' # Define a bunch more column-lists
 df0cls$global <- names(df0)[1:7];
@@ -291,8 +292,8 @@ if(plotunits)
 #' command. But this is a reasonably sized dataset.
 #' Update the realvisit column list, since columns may have been added
 df0cls$realvisit <- lazygrep(rxp$realvisit,names(df0));
-df0 <- findEvents(transform(df0,evt=event==1),cnames=c(df0cls$realvisit,'evt'),
-                  selectfun=any,groupby=df0cls$patid);
+df0 <- findEvents(df0,cnames=c(df0cls$realvisit,df0cls$event),
+                  selectfun=function(...) pmax(...)>0,groupby=df0cls$patid);
 #' Create a unique patient_num/visit-set combo `pn_vis`
 #df0$pn_vis <- paste(df0[,df0cls$patid],df0$ids,sep=':');
 #' list-valued columns in df0, so we can avoid them breaking lastNonMissing()
@@ -306,13 +307,20 @@ split(df0[,df0cls$nonlists],df0$groupids) %>%
   lapply(function(xx) sapply(xx,lastNonMissing,simplify=F) %>% data.frame) %>% 
   bind_rows -> df1;
 
-preexising <- unique(subset(df1,event<2&v000_Mlgnt_prst_inactive)$patient_num);
+split(df1,df1[,df0cls$patid]) %>% 
+  lapply(beforeAfter,event_expression) %>% 
+  bind_rows %>% subset(event<2&ev>1) -> df2;
+
+preexisting_patients <- unique(subset(df2,event==0&eval(preexisting_expression))[[df0cls$patid]]);
+df3 <- subset(df2,!patient_num%in%preexisting_patients);
+
+rp <- deflateReport(df3);
 #' The following report can help us decide what to put in which dataset:
 #' * Naive approach: at least 40 patients w/ >=3 complete cases
 #' * Interpolation/Imputation: at least 40 patients w/ >=3 ocurrences of variable
 #' * Score: base that on manual review of vf plots
-df0cls$casecomp <- setdiff(rownames(subset(baz,HaveCompleteCases>40)),c(df0cls$nonanalytic,df0cls$patid));
-df0cls$imputable <- setdiff(rownames(subset(baz,HaveEnoughData>40)),c(df0cls$nonanalytic,df0cls$patid));
+df0cls$casecomp <- setdiff(rownames(subset(rp,HaveCompleteCases>40)),c(df0cls$nonanalytic,df0cls$patid));
+df0cls$imputable <- setdiff(rownames(subset(rp,HaveEnoughData>40)),c(df0cls$nonanalytic,df0cls$patid));
 
 #' 
 #rept <- deflateDF(subset(df1,event<2&!patient_num%in%preexising)[,setdiff(names(df1),df0cls$nonanalytic)],
