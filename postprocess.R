@@ -306,7 +306,8 @@ split(df0[,df0cls$nonlists],df0$groupids) %>%
   lapply(function(xx) sapply(xx,lastNonMissing,simplify=F) %>% data.frame) %>% 
   bind_rows -> df1;
 
-rept <- deflateDF(subset(df1,event<2)[,setdiff(names(df0),df0cls$nonanalytic)],
+preexising <- unique(subset(df1,event<2&v000_Mlgnt_prst_inactive)$patient_num);
+rept <- deflateDF(subset(df1,event<2&!patient_num%in%preexising)[,setdiff(names(df1),df0cls$nonanalytic)],
                   df0cls$lab,sumThresh = 2,output='re'); 
 #' Create Anderson-Gill format table for time-to-event analysis. Basically
 #' for each patient, stop on their first diagnosis and create column of 0,1
