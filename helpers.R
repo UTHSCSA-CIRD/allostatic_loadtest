@@ -95,10 +95,21 @@ correct <- function(xx, range, conv){
 lastNonMissing <- function(xx,tfmethod=c('any','last'),listmethod=c('combine','last')){
   tfmethod<-match.arg(tfmethod);
   listmethod<-match.arg(listmethod);
+  if(!is.atomic(xx)) {
+    if(all(missing <- sapply(xx,missingLike))) return(NA);
+    nonmissing <- seq_along(missing)[!missing];
+    out <- switch(listmethod,
+                  combine=xx[nonmissing],
+                  last=xx[tail(nonmissing,1)]);
+    return(out);
+  }
   if(all(is.na(xx))) return(NA);
-  if(is.logical(xx)) return(switch(tfmethod,
-                                   any=any(xx),
-                                   last=tail(na.omit(xx),1)));
+  if(is.logical(xx)) {
+    out <- switch(tfmethod,
+                  any=any(xx),
+                  last=tail(na.omit(xx),1));
+    return(out);
+  }
   if('FALSE' %in% toupper(levels(factor(xx)))) return(switch(tfmethod,
                                                              any=any(toupper(na.omit(xx))!='FALSE'),
                                                              last=tail(na.omit(xx),1)));
@@ -124,15 +135,27 @@ thresholdNA <- function(data, name, lthresh = -Inf, uthresh = Inf, envir){
 #' @param result What to return: ascending event-IDs, boolean indicators, or both (default).
 #' @param returnDF Should the selected result be returned as part of the original \code{data.frame} (TRUE, default) or by itself?
 findEvents <- function(data,pattern,
-                       cnames=grep(pattern,names(data),val=T),
+                       cnames=lazygrep(pattern,data),
                        selectfun=function(xx) !all(is.na(xx)),
                        result=c('ids','indicators'),
+                       groupby=NA,
                        returnDF=TRUE){
-  indicators <- apply(data[,cnames],1,selectfun);
+  stopifnot(is.data.frame(data));
+  indicators <- apply(data[,cnames,drop=F],1,selectfun);
   ids <- c(0,cumsum(indicators))[1:length(indicators)];
   out <- data.frame(indicators,ids);
+  if(!is.na(groupby)) {
+    out$groupids <- paste(data[,groupby],ids,sep=':');
+    result <- c(result,'groupids');
+  }
   if(returnDF) return(cbind(data,out[,result,drop=F]));
   return(out[,result]);
+}
+
+lazygrep <- function(pattlist,target,invert=F){
+  stopifnot(is.character(pattlist),is.character(target)||is.data.frame(target));
+  if(is.data.frame(target)) target <- names(target);
+  grep(paste0(pattlist,collapse='|'),target,val=T,invert=invert);
 }
 
 #' Find 1st ocurrence where \code{expr} returns \code{TRUE} (i.e. the event) and 
@@ -150,18 +173,24 @@ findEvents <- function(data,pattern,
 #' @param returnDF Should the selected result be returned as part of the original \code{data.frame} (TRUE, default) or by itself?
 beforeAfter <- function(data,expr,
                         timevar='age_at_visit_days',
-                        result=c('time','tevent','event'),
+                        result=c('time','tevent','event','tstart'),
                         returnDF=TRUE){
   # check for valid input and while at it, create the tt time variable for internal use
   stopifnot(is.data.frame(data)&&is.atomic(timevar)&&!is.null(tt<-data[[timevar]]));
-  expr <- substitute(expr); expr; browser();
+  result <- match.arg(result,several.ok = T);
+  expr <- substitute(expr); expr; 
   # order the data in chronological order, in case this isn't already done
   data <- data[order(tt),]; tt <- sort(tt);
-  ev <- match(T,eval(expr,envir=data));
+  # the double eval is in case somebody tries to pass a call or name
+  # *object* rather than an unevaluated argument. In that case the 
+  # inner eval expands that object into an expression and the outer
+  # one evaluates the expression (and otherwise it is just a null op)
+  ev <- match(T,eval(eval(expr,envir=data),envir=data));
   event <- c(rep(0,ev-1),1,rep(2,length(tt)-ev));
   time <- tt - min(tt);
+  tstart <- min(tt);
   tevent <- time - time[ev];
-  out <- data.frame(time,tevent,event)[,result];
+  out <- data.frame(time,tevent,event,tstart)[,result];
   if(!returnDF) return(out);
   data[,result]<-out;
   data;
@@ -227,17 +256,40 @@ deflateDF <- function(data,include=names(data),exclude=c(),spliton='patient_num'
                       droprows=T,output=c('report','df')){
   stopifnot(is.data.frame(data),is.character(include)||is.numeric(include)||is.logical(include));
   output <- match.arg(output,several.ok = T);
-  mask <- sapply(data,nonmissingLike); 
+  mask <- sapply(data,nonmissingLike);
   cols <- intersect(names(data),setdiff(include,exclude));
   rowkeep <- if(droprows) rowSums(mask[,cols])>0 else T;
   dflmask <- mask[rowkeep,];
   rep <- data.frame(allsums=colSums(dflmask,na.rm = T),allmeans=colMeans(dflmask,na.rm = T));
+  ll <- nrow(rep);
   colkeep <- rep$allsums > sumThresh & rep$allmeans > meanThresh;
+  allcomplete <- allany <- rep(0,ll);
+  trysums <- rownames(rep)[ss<-order(rep$allsums,decreasing = T)];
+  for(ii in seq_len(ll)) {
+    allcomplete[ii] <- if(ii==1||allcomplete[ii-1]>0) 
+      allcomplete[ii] <- sum(apply(dflmask[,trysums[seq_len(ii)],drop=F],1,all))
+    else break;
+    if(ii==1||allany[ii-1]>0)
+      allany[ii] <- sum(apply(dflmask[,trysums[seq_len(ii)],drop=F],1,any))
+    else break;
+  }
+  rep$allcomplete <- allcomplete[order(ss)]; rep$allany <- allany[order(ss)];
   if(!is.na(spliton)) {
     data.frame(dflmask) %>% split(data[[spliton]][rowkeep]) %>% lapply(apply,2,any,na.rm=T) %>% 
       do.call(rbind,.) -> splmask;
     rep$splsums <- colSums(splmask,na.rm=T); rep$splmeans <- colMeans(splmask,na.rm=T);
     colkeep <- colkeep & rep$splsums > sumSplThresh & rep$splmeans > meanSplThresh;
+    allcomplete <- allany <- rep(0,ll);
+    trysplsums <- rownames(rep)[splss<-order(rep$splsums,decreasing = T)];
+    for(ii in seq_len(ll)){
+      allcomplete[ii] <- if(ii==1||allcomplete[ii-1]>0) 
+        allcomplete[ii] <- sum(apply(splmask[,trysplsums[seq_len(ii)],drop=F],1,all))
+      else break;
+      if(ii==1||allany[ii-1]>0)
+        allany[ii] <- sum(apply(splmask[,trysplsums[seq_len(ii)],drop=F],1,any))
+      else break;
+    }
+    rep$splcomplete <- allcomplete[order(splss)]; rep$splany <- allany[order(splss)];
   }
   if(output=='report') return(rep);
   if('df'%in%output){
@@ -291,10 +343,12 @@ splitCodes <- function(xx,prefix='code_',...){
 #' Collapse all non-matching levels to 'N'
 #' The defaults are currently for extracting valueflag info
 mapLevels <- function(xx,
-                      map=c(LH="'vf':\\['H'\\].*'vf':\\['L'\\]|'vf':\\['L'\\].*'vf':\\['H'\\]",L="'vf':\\['L'\\]",H="'vf':\\['H'\\]"),
+                      map=c(LH="'vf':\\['H'\\].*'vf':\\['L'\\]|'vf':\\['L'\\].*'vf':\\['H'\\]",
+                            L="'vf':\\['L'\\]",
+                            H="'vf':\\['H'\\]"),
                       other='N',exclude=NULL,...){
   xx <- factor(xx,exclude=exclude);
-  stopifnot(is.character(map));
+  stopifnot(is.character(map),is.character(other));
   nm <- names(map);
   if(length(unique(nm))<length(map)) {
     nm<-names(map)<-make_names(seq_along(map));
@@ -302,7 +356,8 @@ mapLevels <- function(xx,
   lv<-levels(xx);
   for(ii in nm) lv[grepl(map[ii],lv)] <- ii;
   lv[!grepl(paste0('^',nm,'$',collapse='|'),lv)]<-other;
-  levels(xx) <- lv;
+  unused <- setdiff(c(names(map),other),levels(xx) <- lv);
+  if(length(unused)>0) levels(xx) <- c(levels(xx),unused);
   xx;
 }
 

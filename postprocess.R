@@ -56,10 +56,11 @@ rxp <- list(
                      '_date$','_Dschrg_Dspstn$','_unit$','^sex_cd$'),
   # grep targets for column names some or all of which we expect to be 
   # collected specifically during in-person visits.
-  realvisit =      c('stlc_Prsr_num$',
-                     '_Pls_num$','_Wght_oz_num$',
-                     '_Bd_Ms_Indx_num$','_Hght_cm_num$',
-                     '_Tmprtr_F_num$'),
+  realvisit =      '\\d_Office_Vis',
+  #realvisit =      c('stlc_Prsr_num$',
+  #                   '_Pls_num$','_Wght_oz_num$',
+  #                   '_Bd_Ms_Indx_num$','_Hght_cm_num$',
+  #                   '_Tmprtr_F_num$'),
   vitals =         c('stlc_Prsr_num$','_Rsprtn_Rt_num$',
                      '_Pls_num$','_Wght_oz_num$',
                      '_Bd_Ms_Indx_num$','_Hght_cm_num$',
@@ -106,19 +107,19 @@ dfraw <- read_csv(datafile, na = c("", "(null)")
 event_expression <- parse(text=sprintf(event_definition,
                                        grep(rxp$event,names(dfraw),val=T)[1]))[[1]]; 
 
+#' Create column name lists for df0
+df0cls <- sapply(rxp,lazygrep,names(dfraw),simplify=F);
+
 #' `deflateDF()` removes rows and columns that are empty (perhaps as a result of a 
 #' subsetting operation), and pipe through `beforeAfter()` in order to add 
 #' several transformations of the time variable and encode events for Anderson 
 #' Gill format.
-#' Meh, line 116 is broken. How to dynamically pass event variable?
 subset(dfraw,start_date>daterange[1]&start_date<daterange[2]) %>% 
-  deflateDF(names(dfraw)[-c(1:7)],output='df') %>% 
-  beforeAfter(event_expression) -> df0;
+  split(`[`(.,grep(rxp$patid,names(.)))) %>% 
+  lapply(beforeAfter,event_expression) %>% 
+  bind_rows -> df0;
 
-#' Create column name lists for df0
-df0cls <- sapply(rxp,function(xx) 
-  grep(paste0(xx,collapse='|'),names(df0),val=T),simplify=F);
-
+#' # Define a bunch more column-lists
 df0cls$global <- names(df0)[1:7];
 #' Original variables
 df0cls$origvars <- setdiff(names(df0),df0cls$global);
@@ -131,6 +132,7 @@ df0cls$nonanalytic <- with(df0cls,unique(c(nonanalytic,toofew,unchanging)));
 df0cls$twolvl <- with(df0cls,union(setdiff(names(df0)[sapply(df0,function(xx){
   xxuq <- unique(xx); NA %in% xxuq && length(xxuq)==2})],nonanalytic),twolvl));
 
+#' # Starting column transforms
 #' Convert JSON values to lists squished into a `data.frame` column.
 df0[,df0cls$JSON] <- sapply(df0[,df0cls$JSON],jsonParse,simplify = F);
 for(ii in df0cls$JSON2num) 
@@ -141,8 +143,8 @@ df0cls$numeric <- setdiff(vs(df0,'z'),
                           with(df0cls,c(diags,patid,twolvl,nonanalytic)));
 
 #' Update the smoking column names
-df0cls$smoking <- setdiff(grep(paste0(df0cls$smoking,collapse='|'),names(df0),val=TRUE),
-                          df0cls$nonanalytic);
+df0cls$smoking <- setdiff(lazygrep(df0cls$smoking,names(df0)),df0cls$nonanalytic);
+
 #' Replace the extra stuff in certain code-columns
 for(ii in df0cls$shortenlevels){
   .iilevs <- levels(df0[[ii]] <- factor(df0[[ii]]));
@@ -151,8 +153,8 @@ for(ii in df0cls$shortenlevels){
 }
 
 #' Add prefixes of the columns that are going to be 
-v_listprf <- substr(df0cls$shortenlevels,1,5);
-v_listsuf <- substr(df0cls$shortenlevels,6,100);
+v_listprf <- substr(df0cls$splitlevels,1,5);
+v_listsuf <- substr(df0cls$splitlevels,6,100);
 #' Expand the code-list columns. It so happens that these are the 
 #' same columns as in vars_shortenlevels, but in future datasets
 #' this may change. Really need to fix this in DF
@@ -239,7 +241,15 @@ df0cls$vfinfo <- df0cls$info[sapply(df0[,df0cls$info],function(xx)
 df0cls$vf <- gsub('_info$','_vf',df0cls$vfinfo);
 #' Add the valueflag columns!
 df0[,df0cls$vf] <- data.frame(sapply(df0[,df0cls$vfinfo],mapLevels,
-                                     simplify = F));
+                                     exclude=NA,simplify=F));
+#' Later our analysis will need to distinguish between affirmatively normal
+#' lab values and missing ones. The following step prepares for this.
+#' The NA value-flags for non-missing lab-values will be recoded as 'N'
+for(ii in df0cls$vf) {
+  nii <- gsub('_vf$','_num',ii);
+  df0[!is.na(nii)&is.na(ii),ii] <- 'N';
+}
+
 #' Review values
 if(plotvfs)
   for(ii in df0cls$vf){
@@ -279,13 +289,25 @@ if(plotunits)
 #' `data.frame` by setting the optional `returnDF` argument to `FALSE` and
 #' then inserting the columns of that `data.frame` into `df1` in a separate
 #' command. But this is a reasonably sized dataset.
-df0 <- findEvents(df0,cnames=df0cls$realvisit);
+#' Update the realvisit column list, since columns may have been added
+df0cls$realvisit <- lazygrep(rxp$realvisit,names(df0));
+df0 <- findEvents(transform(df0,evt=event==1),cnames=c(df0cls$realvisit,'evt'),
+                  selectfun=any,groupby=df0cls$patid);
 #' Create a unique patient_num/visit-set combo `pn_vis`
-df0$pn_vis <- paste(df0[,df0cls$patid],df0$ids,sep=':');
+#df0$pn_vis <- paste(df0[,df0cls$patid],df0$ids,sep=':');
 #' list-valued columns in df0, so we can avoid them breaking lastNonMissing()
 df0cls$nonlists <- names(df0)[sapply(df0,is.atomic)];
 #' Update the nonanlytic list of column names
 df0cls$nonanalytic <- union(df0cls$nonanalytic,c('ids','indicators','pn_vis'));
+
+#' Change of plan from below, for how to invoke the collapsing of lab-visits into
+#' office visits.
+split(df0[,df0cls$nonlists],df0$groupids) %>% 
+  lapply(function(xx) sapply(xx,lastNonMissing,simplify=F) %>% data.frame) %>% 
+  bind_rows -> df1;
+
+rept <- deflateDF(subset(df1,event<2)[,setdiff(names(df0),df0cls$nonanalytic)],
+                  df0cls$lab,sumThresh = 2,output='re'); 
 #' Create Anderson-Gill format table for time-to-event analysis. Basically
 #' for each patient, stop on their first diagnosis and create column of 0,1
 #' censoring indicators. The catch is, if after doing that a patient still has 
@@ -302,18 +324,18 @@ df0cls$nonanalytic <- union(df0cls$nonanalytic,c('ids','indicators','pn_vis'));
 #vars_analytic <- grep(patterns_nonanalytic,names(df1),inv=T,val=T);
 #' Create an empty `data.frame` with an identical column layout to `df1`
 #' Removing non-analytic columns
-df1 <- subset(df0,FALSE)[,df0cls$nonlists,drop=F];
-df1[seq_along(meta_unqpnvis <- unique(df0$pn_vis)),]<-NA;
+#df1 <- subset(df0,FALSE)[,df0cls$nonlists,drop=F];
+#df1[seq_along(meta_unqpnvis <- unique(df0$pn_vis)),]<-NA;
 #' Iterate over `pn_vis` to create the collapsed `data.frame` populated with
 #' the last non-missing value of every column in the dataset. 
 #' This part takes a looong time:
-pb <- txtProgressBar(min=0,max=length(meta_unqpnvis),style=3);
-for(ii in seq_along(meta_unqpnvis)){
-  setTxtProgressBar(pb,ii);
-  df1[ii,] <- data.frame(lapply(df0[df0$pn_vis==meta_unqpnvis[ii],df0cls$nonlists,drop=F],
-                                lastNonMissing));
-}
-close(pb);
+#pb <- txtProgressBar(min=0,max=length(meta_unqpnvis),style=3);
+#for(ii in seq_along(meta_unqpnvis)){
+#  setTxtProgressBar(pb,ii);
+#  df1[ii,] <- data.frame(lapply(df0[df0$pn_vis==meta_unqpnvis[ii],df0cls$nonlists,drop=F],
+#                                lastNonMissing));
+#}
+#close(pb);
 
 #' Sanity-checking units 
 #' Checking to see if any of the units of measurement will need converting later on.
