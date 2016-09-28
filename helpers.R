@@ -173,7 +173,7 @@ lazygrep <- function(pattlist,target,invert=F){
 #' @param returnDF Should the selected result be returned as part of the original \code{data.frame} (TRUE, default) or by itself?
 beforeAfter <- function(data,expr,
                         timevar='age_at_visit_days',
-                        result=c('time','tevent','event','tstart'),
+                        result=c('time','tevent','event','tstart','ev','tcount'),
                         returnDF=TRUE){
   # check for valid input and while at it, create the tt time variable for internal use
   stopifnot(is.data.frame(data)&&is.atomic(timevar)&&!is.null(tt<-data[[timevar]]));
@@ -187,10 +187,10 @@ beforeAfter <- function(data,expr,
   # one evaluates the expression (and otherwise it is just a null op)
   ev <- match(T,eval(eval(expr,envir=data),envir=data));
   event <- c(rep(0,ev-1),1,rep(2,length(tt)-ev));
-  time <- tt - min(tt);
-  tstart <- min(tt);
+  tstart <- min(tt); time <- tt-tstart;
   tevent <- time - time[ev];
-  out <- data.frame(time,tevent,event,tstart)[,result];
+  tcount <- length(event);
+  out <- data.frame(time,tevent,event,tstart,ev,tcount)[,result];
   if(!returnDF) return(out);
   data[,result]<-out;
   data;
@@ -250,55 +250,70 @@ nonmissingLike <- function(xx,na.equivs=c('FALSE')){
          ));
 }
 
-deflateDF <- function(data,include=names(data),exclude=c(),spliton='patient_num',
-                      sumThresh=0,meanThresh=0,
+countNonMissing <- function(data,mask=sapply(data,missfn),missfn=nonmissingLike,
+                            exclude=c('patient_num')){
+  stopifnot(is.logical(mask)||is.data.frame(mask),is.character(exclude)||is.null(exclude));
+  # number non-missing
+  lr <- nrow(mask); if(is.null(lr)||lr==1){
+    mask <- unlist(mask)+0;
+    return(data.frame(NonMissing=mask,Complete=mask));
+  }
+  cs <- colSums(mask,na.rm=T);
+  # total number of variables and observations
+  ll <- length(cs);
+  # number of complete cases
+  cc <- rep(0,ll); names(cc) <- names(cs)[ss<-order(cs,decreasing = T)];
+  exclude <- union(exclude,names(cs)[cs==lr]);
+  # number of cases with at least one non-missing
+  ca <- cc; cainc <- ca[!names(ca) %in% exclude];
+  for(ii in seq_len(ll)){
+    if(ii==1||cc[ii-1]>0) cc[ii] <- sum(apply(mask[,names(cc)[seq_len(ii)],drop=F],1,all))
+    else break;
+  }
+  for(ii in seq_along(cainc)){
+    if(ii==1||cainc[ii-1]>0) cainc[ii] <- sum(apply(mask[,names(cainc)[seq_len(ii)],drop=F],1,any))
+    else break;
+  }
+  ca[names(cainc)] <- cainc; ca[intersect(names(ca),exclude)] <- NA;
+  return(data.frame(NonMissing=cs,Complete=cc[order(ss)]));
+}
+
+deflateReport <- function(data,include=names(data),exclude=c(),spliton='patient_num',
+                      sumThresh=3,meanThresh=0,
                       sumSplThresh=sumThresh,meanSplThresh=meanThresh,
                       droprows=T,output=c('report','df')){
   stopifnot(is.data.frame(data),is.character(include)||is.numeric(include)||is.logical(include));
   output <- match.arg(output,several.ok = T);
   mask <- sapply(data,nonmissingLike);
-  cols <- intersect(names(data),setdiff(include,exclude));
-  rowkeep <- if(droprows) rowSums(mask[,cols])>0 else T;
-  dflmask <- mask[rowkeep,];
-  rep <- data.frame(allsums=colSums(dflmask,na.rm = T),allmeans=colMeans(dflmask,na.rm = T));
-  ll <- nrow(rep);
-  colkeep <- rep$allsums > sumThresh & rep$allmeans > meanThresh;
-  allcomplete <- allany <- rep(0,ll);
-  trysums <- rownames(rep)[ss<-order(rep$allsums,decreasing = T)];
-  for(ii in seq_len(ll)) {
-    allcomplete[ii] <- if(ii==1||allcomplete[ii-1]>0) 
-      allcomplete[ii] <- sum(apply(dflmask[,trysums[seq_len(ii)],drop=F],1,all))
-    else break;
-    if(ii==1||allany[ii-1]>0)
-      allany[ii] <- sum(apply(dflmask[,trysums[seq_len(ii)],drop=F],1,any))
-    else break;
+  exclude <- union(setdiff(names(data),include),exclude);
+  rep <- countNonMissing(mask=mask,exclude=exclude);
+  rep <- cbind(rep,setNames(rep/nrow(data),paste0('Frac_',names(rep))));
+  if(!is.na(spliton)){
+    data.frame(mask) %>% 
+      split(data[[spliton]]) %>% 
+      lapply(function(xx) countNonMissing(mask=xx,exclude=exclude)) -> spmask;
+    lapply(spmask,function(xx) xx$Complete > sumSplThresh) %>% bind_rows %>% rowSums -> spcmp;
+    lapply(spmask,function(xx) xx$NonMissing > sumSplThresh) %>% bind_rows %>% rowSums -> spnm;
+    lx <- length(spmask);
+    sprep <- data.frame(HaveCompleteCases=spcmp,HaveEnoughData=spnm);
+    sprep <- cbind(sprep,setNames(sprep/lx,paste0('Frac_',names(sprep))));
+    rep <- cbind(rep,sprep);
   }
-  rep$allcomplete <- allcomplete[order(ss)]; rep$allany <- allany[order(ss)];
-  if(!is.na(spliton)) {
-    data.frame(dflmask) %>% split(data[[spliton]][rowkeep]) %>% lapply(apply,2,any,na.rm=T) %>% 
-      do.call(rbind,.) -> splmask;
-    rep$splsums <- colSums(splmask,na.rm=T); rep$splmeans <- colMeans(splmask,na.rm=T);
-    colkeep <- colkeep & rep$splsums > sumSplThresh & rep$splmeans > meanSplThresh;
-    allcomplete <- allany <- rep(0,ll);
-    trysplsums <- rownames(rep)[splss<-order(rep$splsums,decreasing = T)];
-    for(ii in seq_len(ll)){
-      allcomplete[ii] <- if(ii==1||allcomplete[ii-1]>0) 
-        allcomplete[ii] <- sum(apply(splmask[,trysplsums[seq_len(ii)],drop=F],1,all))
-      else break;
-      if(ii==1||allany[ii-1]>0)
-        allany[ii] <- sum(apply(splmask[,trysplsums[seq_len(ii)],drop=F],1,any))
-      else break;
-    }
-    rep$splcomplete <- allcomplete[order(splss)]; rep$splany <- allany[order(splss)];
-  }
-  if(output=='report') return(rep);
-  if('df'%in%output){
-    # deflate the dataframe
-    data <- data[rowkeep,colkeep]; 
-    if(output=='df') return(data);
-    rep <- rep[colkeep,];
-    return(list(data=data,report=rep));
-  }
+  return(rep);
+  # cols <- intersect(names(data),setdiff(include,exclude));
+  # rowkeep <- if(droprows) rowSums(mask[,cols])>0 else T;
+  # dflmask <- mask[rowkeep,];
+  # rep <- data.frame(allsums=colSums(dflmask,na.rm = T),allmeans=colMeans(dflmask,na.rm = T));
+  # ll <- nrow(rep);
+  # colkeep <- rep$allsums > sumThresh & rep$allmeans > meanThresh;
+  # if(output=='report') return(rep);
+  # if('df'%in%output){
+  #   # deflate the dataframe
+  #   data <- data[rowkeep,colkeep]; 
+  #   if(output=='df') return(data);
+  #   rep <- rep[colkeep,];
+  #   return(list(data=data,report=rep));
+  # }
 }
 
 #'

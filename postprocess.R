@@ -307,8 +307,16 @@ split(df0[,df0cls$nonlists],df0$groupids) %>%
   bind_rows -> df1;
 
 preexising <- unique(subset(df1,event<2&v000_Mlgnt_prst_inactive)$patient_num);
-rept <- deflateDF(subset(df1,event<2&!patient_num%in%preexising)[,setdiff(names(df1),df0cls$nonanalytic)],
-                  df0cls$lab,sumThresh = 2,output='re'); 
+#' The following report can help us decide what to put in which dataset:
+#' * Naive approach: at least 40 patients w/ >=3 complete cases
+#' * Interpolation/Imputation: at least 40 patients w/ >=3 ocurrences of variable
+#' * Score: base that on manual review of vf plots
+df0cls$casecomp <- setdiff(rownames(subset(baz,HaveCompleteCases>40)),c(df0cls$nonanalytic,df0cls$patid));
+df0cls$imputable <- setdiff(rownames(subset(baz,HaveEnoughData>40)),c(df0cls$nonanalytic,df0cls$patid));
+
+#' 
+#rept <- deflateDF(subset(df1,event<2&!patient_num%in%preexising)[,setdiff(names(df1),df0cls$nonanalytic)],
+#                  df0cls$lab,sumThresh = 2,output='re'); 
 #' Create Anderson-Gill format table for time-to-event analysis. Basically
 #' for each patient, stop on their first diagnosis and create column of 0,1
 #' censoring indicators. The catch is, if after doing that a patient still has 
