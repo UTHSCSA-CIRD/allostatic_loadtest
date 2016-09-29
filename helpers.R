@@ -93,6 +93,7 @@ correct <- function(xx, range, conv){
 
 
 lastNonMissing <- function(xx,tfmethod=c('any','last'),listmethod=c('combine','last')){
+  if(length(xx)==1) return(xx);
   tfmethod<-match.arg(tfmethod);
   listmethod<-match.arg(listmethod);
   if(!is.atomic(xx)) {
@@ -288,7 +289,7 @@ deflateReport <- function(data,include=names(data),exclude=c(),spliton='patient_
   exclude <- union(setdiff(names(data),include),exclude);
   rep <- countNonMissing(mask=mask,exclude=exclude);
   rep <- cbind(rep,setNames(rep/nrow(data),paste0('Frac_',names(rep))));
-  if(!is.na(spliton)){
+  if(!is.na(spliton)&&spliton%in%names(data)){
     data.frame(mask) %>% 
       split(data[[spliton]]) %>% 
       lapply(function(xx) countNonMissing(mask=xx,exclude=exclude)) -> spmask;

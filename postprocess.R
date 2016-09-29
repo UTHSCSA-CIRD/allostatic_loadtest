@@ -293,7 +293,7 @@ if(plotunits)
 #' Update the realvisit column list, since columns may have been added
 df0cls$realvisit <- lazygrep(rxp$realvisit,names(df0));
 df0 <- findEvents(df0,cnames=c(df0cls$realvisit,df0cls$event),
-                  selectfun=function(...) pmax(...)>0,groupby=df0cls$patid);
+                  selectfun=any,groupby=df0cls$patid);
 #' Create a unique patient_num/visit-set combo `pn_vis`
 #df0$pn_vis <- paste(df0[,df0cls$patid],df0$ids,sep=':');
 #' list-valued columns in df0, so we can avoid them breaking lastNonMissing()
@@ -308,21 +308,49 @@ split(df0[,df0cls$nonlists],df0$groupids) %>%
   bind_rows -> df1;
 
 split(df1,df1[,df0cls$patid]) %>% 
-  lapply(beforeAfter,event_expression) %>% 
+  lapply(beforeAfter,parse(text = paste0(df0cls$event,collapse='|'))[[1]]) %>% 
   bind_rows %>% subset(event<2&ev>1) -> df2;
 
-preexisting_patients <- unique(subset(df2,event==0&eval(preexisting_expression))[[df0cls$patid]]);
-df3 <- subset(df2,!patient_num%in%preexisting_patients);
+#' At the time of this writing, preexisting_patients ends up being c(), but that
+#' seems to not be an error-- rather, we don't have any preexisiting PC after
+#' updating the event criteria to include the ICD10 version
+subset(df2,event==0 & eval(df0cls$event_preexisting %>% paste0(collapse='|') %>% 
+                             parse(text=.) %>% `[[`(1)))[[df0cls$patid]] %>%
+  unique %>% as.character -> preexisting_patients;
 
-rp <- deflateReport(df3);
+if(length(preexisting_patients)>0) df3 <- subset(df2,!patient_num%in%preexisting_patients) else {
+  df3 <- df2;
+}
+
+rp <- deflateReport(df3[,with(df0cls,c(patid,lab))]);
+rpall <- deflateReport(df3);
 #' The following report can help us decide what to put in which dataset:
 #' * Naive approach: at least 40 patients w/ >=3 complete cases
 #' * Interpolation/Imputation: at least 40 patients w/ >=3 ocurrences of variable
 #' * Score: base that on manual review of vf plots
-df0cls$casecomp <- setdiff(rownames(subset(rp,HaveCompleteCases>40)),c(df0cls$nonanalytic,df0cls$patid));
-df0cls$imputable <- setdiff(rownames(subset(rp,HaveEnoughData>40)),c(df0cls$nonanalytic,df0cls$patid));
+df0cls$casecomp <- setdiff(rownames(subset(rp,HaveCompleteCases>30)),c(df0cls$nonanalytic));
+df0cls$imputable <- setdiff(rownames(subset(rp,HaveEnoughData>30)),c(df0cls$nonanalytic));
 
+#' How many case-complete observations actually remain?
+nrow(na.omit(df3[,df0cls$casecomp]));
+#' How many unique patients are still covered? (remember, we'll have to fit our
+#' model on a training set containing only half of them).
+length(unique(na.omit(df3[,df0cls$casecomp])[[df0cls$patid]]));
+#' How many of them have more than one complete visit before initial diagnosis?
+sum(summary(factor(na.omit(df3[,df0cls$casecomp])[[df0cls$patid]]),maxsum = 1000)>1);
+#' # Interrim conclusion:
 #' 
+#' If we are willing to impute/interpolate up to 80% of the missing data, we can
+#' use this:
+df4_imputable <- df3[,with(df0cls,c(global,vitals,diags,smoking,intersect(lab,imputable)))];
+#' If we do only complete cases, we need to use fewer missing variables and should
+#' use this:
+df4_casecomp <- df3[,with(df0cls,c(global,vitals,diags,smoking,intersect(casecomp,imputable)))];
+#' To construct a score, e.g. total high/low value-flags as a fraction of 
+#' non-missing labs during a followup period, we will need to clean up the vfs,
+#' throw out the uninformative ones, and then construct a (relatively simple) 
+#' score on the rest.
+
 #rept <- deflateDF(subset(df1,event<2&!patient_num%in%preexising)[,setdiff(names(df1),df0cls$nonanalytic)],
 #                  df0cls$lab,sumThresh = 2,output='re'); 
 #' Create Anderson-Gill format table for time-to-event analysis. Basically
