@@ -374,6 +374,16 @@ legend('bottomleft',legend=c('Younger','Older'),col=c('red','black'),lty=1,bty='
 #' patients of comparable age at first visit and comparable distribution of health 
 #' history lengths who so far never developed PC.
 
+#' In preparation for the control sample, here are the tstart quantiles for
+#' the PC sample:
+split(df2$age_at_visit_days,df2[[df0cls$patid]],drop = T) %>% sapply(max) %>% 
+  quantile(seq(0,1,by=.1)) -> df2quants;
+
+#' To select an age-balanced healthy sample from dataset bar we would do...
+#split(bar,cut(bar$tstart,df2quants,include.lowest = T)) %>% 
+#  lapply(function(xx) sample(unique(xx$patient_num),3)) %>% unlist %>% 
+#  as.character -> matchedpns;
+#subset(bar,patient_num %in% matchedpns) -> df2ctrl;
 #' To construct a score, e.g. total high/low value-flags as a fraction of 
 #' non-missing labs during a followup period, we will need to clean up the vfs,
 #' throw out the uninformative ones, and then construct a (relatively simple) 
