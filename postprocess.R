@@ -29,6 +29,10 @@ minnm <- 4;
 #' Minimum number of visits for below which the specialty, enctype, or financial 
 #' class are binned together in the 'Other' category
 minvs <- 18;
+
+#' The training set was defined once, near the end of this script.
+#' From now on it must remain static, at the following value:
+trset <- c('4668579','4639333','4025815','4610333','4451646','5395328','4135687','5601609','3934070','5615572','4281679','4303649','4091860','5529362','4123946','5411073','4596447','5069805','3883587','3942296','5499986','5495319','4314613','4822143','5476090','4083814','4157378','5447492','3971116','5375977','4288851','4316696','3919462','4216406','5394713','5270628','5158127','4888638','5608673','3918313','3901964','5237956','5609476','5044537','5562742','4712658','5631163','4207786','4652271','5632107','4225291','4222985','5302101','5533523','5294228','4031582','5623393','5636855','4028511','5433112','4893191','4437214','4186597','4192578','3854215','4927155','4680640','4929015','4827229','4282324','4801094','5095790','3866081','5068675');
 #' Date range
 daterange <- as.POSIXct(as.Date(c(
   '2006-01-01','2016-06-01'
@@ -322,14 +326,19 @@ if(length(preexisting_patients)>0) df3 <- subset(df2,!patient_num%in%preexisting
   df3 <- df2;
 }
 
+#' # We take a random training sample of about half the patients.
+if(!exists('trset')) trset <- sample(unique(df3[[df0cls$patid]]),round(length(unique(df3[[df0cls$patid]]))/2));
+df3 <- df3[df3[[df0cls$patid]]%in%trset,];
+
+rpcheat <- deflateReport(df2[,with(df0cls,c(patid,lab))]);
 rp <- deflateReport(df3[,with(df0cls,c(patid,lab))]);
 rpall <- deflateReport(df3);
 #' The following report can help us decide what to put in which dataset:
 #' * Naive approach: at least 40 patients w/ >=3 complete cases
 #' * Interpolation/Imputation: at least 40 patients w/ >=3 ocurrences of variable
 #' * Score: base that on manual review of vf plots
-df0cls$casecomp <- setdiff(rownames(subset(rp,HaveCompleteCases>30)),c(df0cls$nonanalytic));
-df0cls$imputable <- setdiff(rownames(subset(rp,HaveEnoughData>30)),c(df0cls$nonanalytic));
+df0cls$casecomp <- setdiff(rownames(subset(rpcheat,HaveCompleteCases>30)),c(df0cls$nonanalytic));
+df0cls$imputable <- setdiff(rownames(subset(rpcheat,HaveEnoughData>30)),c(df0cls$nonanalytic));
 
 #' How many case-complete observations actually remain?
 nrow(na.omit(df3[,df0cls$casecomp]));
@@ -342,10 +351,24 @@ sum(summary(factor(na.omit(df3[,df0cls$casecomp])[[df0cls$patid]]),maxsum = 1000
 #' 
 #' If we are willing to impute/interpolate up to 80% of the missing data, we can
 #' use this:
-df4_imputable <- df3[,with(df0cls,c(global,vitals,diags,smoking,intersect(lab,imputable)))];
+df4_imputable <- df3[,with(df0cls,c(global,vitals,diags,smoking,
+                                    'time','tevent','event','tstart',
+                                    'v039_Ethnct',
+                                    intersect(lab,imputable)))];
 #' If we do only complete cases, we need to use fewer missing variables and should
 #' use this:
-df4_casecomp <- df3[,with(df0cls,c(global,vitals,diags,smoking,intersect(casecomp,imputable)))];
+df4_casecomp <- df3[,with(df0cls,c(global,vitals,diags,smoking,
+                                   'time','tevent','event','tstart',
+                                   'v039_Ethnct',
+                                   intersect(lab,casecomp)))];
+#' # Now watch, our first visualization of actual data. 
+#' 
+#' Risk of PC diagnosis for patients in the older half of the set
+#' versus patients in the younger half.
+plot(survfit(Surv(time,event==1)~1,df4_casecomp,subset=scale(tstart)>=0),
+     las=2,xlab='Days Since First Visit',main='PC Diagnosis Rate',bty='n');
+lines(survfit(Surv(time,event==1)~1,df4_casecomp,subset=scale(tstart)<0),col='red');
+legend('bottomleft',legend=c('Younger','Older'),col=c('red','black'),lty=1,bty='n');
 #' To construct a score, e.g. total high/low value-flags as a fraction of 
 #' non-missing labs during a followup period, we will need to clean up the vfs,
 #' throw out the uninformative ones, and then construct a (relatively simple) 
