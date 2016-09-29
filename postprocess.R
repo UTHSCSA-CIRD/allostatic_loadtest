@@ -369,6 +369,11 @@ plot(survfit(Surv(time,event==1)~1,df4_casecomp,subset=scale(tstart)>=0),
      las=2,xlab='Days Since First Visit',main='PC Diagnosis Rate',bty='n');
 lines(survfit(Surv(time,event==1)~1,df4_casecomp,subset=scale(tstart)<0),col='red');
 legend('bottomleft',legend=c('Younger','Older'),col=c('red','black'),lty=1,bty='n');
+
+#' Take this with a huge grain of salt, though. We still need to add in the healthy
+#' patients of comparable age at first visit and comparable distribution of health 
+#' history lengths who so far never developed PC.
+
 #' To construct a score, e.g. total high/low value-flags as a fraction of 
 #' non-missing labs during a followup period, we will need to clean up the vfs,
 #' throw out the uninformative ones, and then construct a (relatively simple) 
