@@ -365,10 +365,10 @@ df4_casecomp <- df3[,with(df0cls,c(global,vitals,diags,smoking,
 #' 
 #' Risk of PC diagnosis for patients in the older half of the set
 #' versus patients in the younger half.
-plot(survfit(Surv(time,event==1)~1,df4_casecomp,subset=scale(tstart)>=0),
-     las=2,xlab='Days Since First Visit',main='PC Diagnosis Rate',bty='n');
-lines(survfit(Surv(time,event==1)~1,df4_casecomp,subset=scale(tstart)<0),col='red');
-legend('bottomleft',legend=c('Younger','Older'),col=c('red','black'),lty=1,bty='n');
+plot(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)>=0&event==1),
+     las=2,xlab='Days Since First Visit',main='PC Diagnosis Rate',bty='n',lwd=2)
+lines(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)<0&event==1),col='red',lwd=2)
+legend('topright',legend=c('Younger','Older'),col=c('red','black'),pch=1,bty='n',cex=1);
 
 #' Take this with a huge grain of salt, though. We still need to add in the healthy
 #' patients of comparable age at first visit and comparable distribution of health 
