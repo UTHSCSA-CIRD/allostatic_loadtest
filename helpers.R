@@ -92,11 +92,19 @@ correct <- function(xx, range, conv){
 }
 
 
-lastNonMissing <- function(xx,tfmethod=c('any','last'),listmethod=c('combine','last')){
+lastNonMissing <- function(xx,tfmethod=c('any','last'),
+                           listmethod=c('combine','last'),missingLevelsEquiv=c()){
   if(length(xx)==1) return(xx);
+  if(all(is.na(xx))) return(NA);
   tfmethod<-match.arg(tfmethod);
-  listmethod<-match.arg(listmethod);
+  if(is.logical(xx)) {
+    out <- switch(tfmethod,
+                  any=any(xx),
+                  last=tail(na.omit(xx),1));
+    return(out);
+  }
   if(!is.atomic(xx)) {
+    listmethod<-match.arg(listmethod);
     if(all(missing <- sapply(xx,missingLike))) return(NA);
     nonmissing <- seq_along(missing)[!missing];
     out <- switch(listmethod,
@@ -104,16 +112,13 @@ lastNonMissing <- function(xx,tfmethod=c('any','last'),listmethod=c('combine','l
                   last=xx[tail(nonmissing,1)]);
     return(out);
   }
-  if(all(is.na(xx))) return(NA);
-  if(is.logical(xx)) {
-    out <- switch(tfmethod,
-                  any=any(xx),
-                  last=tail(na.omit(xx),1));
-    return(out);
+  # made this check optional because I suspect it's sloooow
+  if(length(missingLevelsEquiv)>0) {
+    if(length(intersect(toupper(missingLevelsEquiv),toupper(levels(factor(xx)))))>0){
+      return(switch(tfmethod,any=any(toupper(na.omit(xx))!='FALSE'),
+                    last=tail(na.omit(xx),1)));
+    }
   }
-  if('FALSE' %in% toupper(levels(factor(xx)))) return(switch(tfmethod,
-                                                             any=any(toupper(na.omit(xx))!='FALSE'),
-                                                             last=tail(na.omit(xx),1)));
   return(last(na.omit(xx)));
 }
 
@@ -143,7 +148,8 @@ findEvents <- function(data,pattern,
                        returnDF=TRUE){
   stopifnot(is.data.frame(data));
   indicators <- apply(data[,cnames,drop=F],1,selectfun);
-  ids <- c(0,cumsum(indicators))[1:length(indicators)];
+  # modified cumsum, from c(0,cumsum(indicators))[1:length(indicators)];
+  ids <- cumsum(indicators)+1;
   out <- data.frame(indicators,ids);
   if(!is.na(groupby)) {
     out$groupids <- paste(data[,groupby],ids,sep=':');
@@ -173,25 +179,29 @@ lazygrep <- function(pattlist,target,invert=F){
 #' @param retuls A \code{character} vector of what results to return. One or more of \code{time}, \code{tevent}, or \code{event}
 #' @param returnDF Should the selected result be returned as part of the original \code{data.frame} (TRUE, default) or by itself?
 beforeAfter <- function(data,expr,
-                        timevar='age_at_visit_days',
-                        result=c('time','tevent','event','tstart','ev','tcount'),
+                        timevar='age_at_visit_days',insureOrder=F,
+                        result=c('time','tevent','event','tstart','ev','tcount','hasevent'),
                         returnDF=TRUE){
   # check for valid input and while at it, create the tt time variable for internal use
   stopifnot(is.data.frame(data)&&is.atomic(timevar)&&!is.null(tt<-data[[timevar]]));
   result <- match.arg(result,several.ok = T);
   expr <- substitute(expr); expr; 
   # order the data in chronological order, in case this isn't already done
-  data <- data[order(tt),]; tt <- sort(tt);
+  if(insureOrder) {data <- data[order(tt),]; tt <- sort(tt);}
   # the double eval is in case somebody tries to pass a call or name
   # *object* rather than an unevaluated argument. In that case the 
   # inner eval expands that object into an expression and the outer
   # one evaluates the expression (and otherwise it is just a null op)
+  tstart <- min(tt); time <- tt-tstart; tcount <- length(time);
   ev <- match(T,eval(eval(expr,envir=data),envir=data));
-  event <- c(rep(0,ev-1),1,rep(2,length(tt)-ev));
-  tstart <- min(tt); time <- tt-tstart;
-  tevent <- time - time[ev];
-  tcount <- length(event);
-  out <- data.frame(time,tevent,event,tstart,ev,tcount)[,result];
+  if(is.na(ev)){
+    event <- 0; tevent <- max(time)-time; hasevent <- F;
+  } else {
+    event <- c(rep(0,ev-1),1,rep(2,length(tt)-ev));
+    tevent <- time - time[ev];
+    hasevent <- T;
+  }
+  out <- data.frame(time,tevent,event,tstart,ev,tcount,hasevent)[,result];
   if(!returnDF) return(out);
   data[,result]<-out;
   data;
@@ -431,3 +441,47 @@ return.
   #print(env[[lgo]][[index]]);
 }
 
+discrOrCont <- function(xx,uniquelim=4,toplim=.9){
+  stopifnot(!is.null(xx),is.atomic(xx));
+  if(!(is.numeric(xx)||'Date'%in%class(xx))) return(1) else return(2);
+  #if(length(lu<-unique(xx))<uniquelim ||
+  #   sum(sort(table(xx,exclude = NULL),decr=T)[1:(uniquelim-1)])/length(xx)>toplim ||
+  #   !(is.numeric(xx)||'Date'%in%class(xx))) return(1) else return(2);
+}
+
+#' Determine which of a pair of vectors is discrete or continuous
+types<-function(xx,yy,...){
+  stopifnot(!(missing(xx)&&missing(yy)),!(is.null(xx)&&is.null(yy)),is.atomic(xx)||is.atomic(yy));
+  if(!missing(yy)&&is.atomic(yy)&&!is.null(yy)) out <- discrOrCont(yy) else {
+    return(discrOrCont(xx));
+  }
+  if(length(xx)==length(yy)&&identical(xx,yy)) return(out);
+  return(10*discrOrCont(xx)+out);
+}
+
+uniplot <- function(xx,yy=NULL,tt=types(xx,yy),col,fill,shape,lty,lwd,alpha,grp,
+                    xlim=c(),ylim=c()){
+  if(tt%in%c(11,21)) yy<-factor(yy);
+  if(tt%in%c(1,11,12)) xx<-factor(xx);
+  gg <- ggplot(,aes(xx)) + coord_cartesian(xlim=xlim,ylim=ylim);
+  if(tt>11) gg$mapping$y <- quote(yy);
+  s_col<-s_shp<-s_lty<-s_lwd<-s_alp<-s_grp<-fll<-NA;
+  if(!missing(col)){
+    if(length(col)==length(xx)) gg$mapping$colour<-quote(col) else {
+      s_col<-col[1]}}
+  if(!missing(grp)){
+    if(length(grp)==length(xx)) gg$mapping$group<-quote(grp) else {
+      s_grp<-grp[1]}}
+  if(tt%in%1:2) gg$mapping$y <- NULL;
+  lyr <- switch(as.character(tt),
+         `1`=geom_bar(),
+         `2`=geom_density(),
+         `11`=geom_bar(aes(fill=yy),position='stack'),
+         `12`=geom_boxplot(),
+         `21`={gg$mapping[c('x','y')]<-gg$mapping[c('y','x')];
+         gg<-gg+coord_flip(xlim=ylim,ylim=xlim);
+         geom_boxplot();},
+         `22`=geom_point()
+         )
+  gg + lyr;
+}

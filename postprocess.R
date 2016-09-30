@@ -23,7 +23,7 @@ mapsp <- read_csv('specialty_codes.csv', na = c("", "(null)"));
 #' respectively
 plotunits <- F; plotvfs <- F;
 #' The name of the raw data file
-datafile <- 'allo_05.csv';
+datafile <- 'allo_05_combined.csv';
 #' Minimum number of non-missing values to remain in dataset
 minnm <- 4;
 #' Minimum number of visits for below which the specialty, enctype, or financial 
@@ -33,7 +33,7 @@ minvs <- 18;
 #' The training set was defined once, near the end of this script.
 #' From now on it must remain static, at the following value:
 trset <- c('4668579','4639333','4025815','4610333','4451646','5395328','4135687','5601609','3934070','5615572','4281679','4303649','4091860','5529362','4123946','5411073','4596447','5069805','3883587','3942296','5499986','5495319','4314613','4822143','5476090','4083814','4157378','5447492','3971116','5375977','4288851','4316696','3919462','4216406','5394713','5270628','5158127','4888638','5608673','3918313','3901964','5237956','5609476','5044537','5562742','4712658','5631163','4207786','4652271','5632107','4225291','4222985','5302101','5533523','5294228','4031582','5623393','5636855','4028511','5433112','4893191','4437214','4186597','4192578','3854215','4927155','4680640','4929015','4827229','4282324','4801094','5095790','3866081','5068675');
-#' Date range
+#' Date range/var/dbuilder1/allopr/allo_05_combined.csv
 daterange <- as.POSIXct(as.Date(c(
   '2006-01-01','2016-06-01'
 )));
@@ -143,9 +143,6 @@ df0[,df0cls$JSON] <- sapply(df0[,df0cls$JSON],jsonParse,simplify = F);
 for(ii in df0cls$JSON2num) 
   df0[[paste0(ii,'_num')]] <- as.numeric(trimws(dfListExtract(df0[[ii]],'nv')));
 
-#' Find the numeric columns
-df0cls$numeric <- setdiff(vs(df0,'z'),
-                          with(df0cls,c(diags,patid,twolvl,nonanalytic)));
 
 #' Update the smoking column names
 df0cls$smoking <- setdiff(lazygrep(df0cls$smoking,names(df0)),df0cls$nonanalytic);
@@ -211,6 +208,11 @@ df0cls$pcp <- grep(rxp$pcp,df0cls$Prvdr_Spclt,val=T);
 
 #' If all looks good, convert numeric columns to numeric 
 #' (in this case the `for` loop is faster)
+#' Find the numeric columns
+df0cls$numeric <- setdiff(vs(df0,'z'),
+                          with(df0cls,c(diags,patid,twolvl,nonanalytic)));
+
+
 for(.ii in df0cls$numeric) df0[[.ii]] <- as.numeric(df0[[.ii]]);
 df0$age_years <- df0$age_at_visit_days / 365  # Convert to years.
 df0cls$numeric <- c(df0cls$numeric,'age_years');
@@ -308,12 +310,12 @@ df0cls$nonanalytic <- union(df0cls$nonanalytic,c('ids','indicators','pn_vis'));
 #' Change of plan from below, for how to invoke the collapsing of lab-visits into
 #' office visits.
 split(df0[,df0cls$nonlists],df0$groupids) %>% 
-  lapply(function(xx) sapply(xx,lastNonMissing,simplify=F) %>% data.frame) %>% 
+  lapply(function(xx) if(nrow(xx)==1) return(xx) else sapply(xx,lastNonMissing,simplify=F) %>% data.frame) %>% 
   bind_rows -> df1;
 
 split(df1,df1[,df0cls$patid]) %>% 
   lapply(beforeAfter,parse(text = paste0(df0cls$event,collapse='|'))[[1]]) %>% 
-  bind_rows %>% subset(event<2&ev>1) -> df2;
+  bind_rows %>% subset(event<2&(is.na(ev)|ev>1)) -> df2;
 
 #' At the time of this writing, preexisting_patients ends up being c(), but that
 #' seems to not be an error-- rather, we don't have any preexisiting PC after
@@ -376,9 +378,15 @@ legend('topright',legend=c('Younger','Older'),col=c('red','black'),pch=1,bty='n'
 
 #' In preparation for the control sample, here are the tstart quantiles for
 #' the PC sample:
-split(df2$age_at_visit_days,df2[[df0cls$patid]],drop = T) %>% sapply(max) %>% 
-  quantile(seq(0,1,by=.1)) -> df2quants;
+split(subset(df3,!is.na(ev))$age_at_visit_days,
+      subset(df3,!is.na(ev))[[df0cls$patid]],drop = T) %>% sapply(min) %>% 
+  quantile(seq(0,1,by=.1)) -> df3quants;
 
+with(subset(df3,is.na(ev)),split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
+  lapply(function(xx) length(unique(xx)));
+
+with(subset(df3,is.na(ev)),split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
+  lapply(function(xx) sample(unique(xx),32)) -> ctrsamp;
 #' To select an age-balanced healthy sample from dataset bar we would do...
 #split(bar,cut(bar$tstart,df2quants,include.lowest = T)) %>% 
 #  lapply(function(xx) sample(unique(xx$patient_num),3)) %>% unlist %>% 
