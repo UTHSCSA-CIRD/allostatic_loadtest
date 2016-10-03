@@ -83,7 +83,13 @@ rxp <- list(
   onco =             'Onco',
   pcp =              '(Family|Geriatric|Internal)_Medicine$',
   event =            '_Mlgnt_prst$',
-  event_preexisting ='_Mlgnt_prst_inactive$'
+  event_preexisting ='_Mlgnt_prst_inactive$',
+  # this one is rather ad-hoc, but basically the labs that permit at least a 
+  # tiny sample size rather than the 0 for more ambitious combinations of labs
+  safelabs =     c('_3094_0_num$','_2028_9_num$','_17861_6_num$','_2075_0_num$',
+                     '_2160_0_num$','_2345_7_num$','_2823_3_num$','_2951_2_num$'),
+  # ditto for labs
+  safevitals =   c('_.stlc_Prsr_num$','_Pls_num','_Wght_oz_num')
 );
 
 #' This one is separate because it's done to column values, not column names
@@ -254,16 +260,16 @@ df0[,df0cls$vf] <- data.frame(sapply(df0[,df0cls$vfinfo],mapLevels,
 #' The NA value-flags for non-missing lab-values will be recoded as 'N'
 for(ii in df0cls$vf) {
   nii <- gsub('_vf$','_num',ii);
-  df0[!is.na(nii)&is.na(ii),ii] <- 'N';
+  df0[!is.na(df0[[nii]])&is.na(df0[[ii]]),ii] <- 'N';
 }
 
 #' Review values
 if(plotvfs)
-  for(ii in df0cls$vf){
+  for(ii in intersect(gsub('_num$','_vf',df0cls$safelabs),df0cls$vf)){
     .iin<-gsub('_vf$','_num',ii); 
     if(is.numeric(df0[[.iin]])&&length(levels(df0[[ii]]))>1) 
       feedbackOMatic(ii,vffb,
-                     stripchart(formula(paste(.iin,'~',ii)),
+                     stripchart(formula(paste(.iin,'~I(factor(',ii,',exclude = NULL))')),
                                 df0,method='jitter',pch='.',
                                 cex=2.5,col='#FF444430',ver=T,las=2,
                                 ylim=if(is.na(.vs$lim)) c() else c(0,.vs$lim)));
@@ -317,6 +323,11 @@ split(df1,df1[,df0cls$patid]) %>%
   lapply(beforeAfter,parse(text = paste0(df0cls$event,collapse='|'))[[1]]) %>% 
   bind_rows %>% subset(event<2&(is.na(ev)|ev>1)) -> df2;
 
+#' There was a bug in calculating tevent in versions previous to 16/10/02
+#' If reusing data.frames calculated before then, do the following patch:
+# df2[is.na(df2$ev),'tevent']<- -df2[is.na(df2$ev),'tevent']
+#' ...and similarly for df3 if reusing that
+
 #' At the time of this writing, preexisting_patients ends up being c(), but that
 #' seems to not be an error-- rather, we don't have any preexisiting PC after
 #' updating the event criteria to include the ICD10 version
@@ -328,53 +339,9 @@ if(length(preexisting_patients)>0) df3 <- subset(df2,!patient_num%in%preexisting
   df3 <- df2;
 }
 
-#' # We take a random training sample of about half the patients.
-if(!exists('trset')) trset <- sample(unique(df3[[df0cls$patid]]),round(length(unique(df3[[df0cls$patid]]))/2));
-df3 <- df3[df3[[df0cls$patid]]%in%trset,];
+#' # We take a random training sample of about half the  PC patients.
+if(!exists('trset')) trset <- sample(unique(subset(df3,!is.na(ev))[[df0cls$patid]]),round(length(unique(df3[[df0cls$patid]]))/2));
 
-rpcheat <- deflateReport(df2[,with(df0cls,c(patid,lab))]);
-rp <- deflateReport(df3[,with(df0cls,c(patid,lab))]);
-rpall <- deflateReport(df3);
-#' The following report can help us decide what to put in which dataset:
-#' * Naive approach: at least 40 patients w/ >=3 complete cases
-#' * Interpolation/Imputation: at least 40 patients w/ >=3 ocurrences of variable
-#' * Score: base that on manual review of vf plots
-df0cls$casecomp <- setdiff(rownames(subset(rpcheat,HaveCompleteCases>30)),c(df0cls$nonanalytic));
-df0cls$imputable <- setdiff(rownames(subset(rpcheat,HaveEnoughData>30)),c(df0cls$nonanalytic));
-
-#' How many case-complete observations actually remain?
-nrow(na.omit(df3[,df0cls$casecomp]));
-#' How many unique patients are still covered? (remember, we'll have to fit our
-#' model on a training set containing only half of them).
-length(unique(na.omit(df3[,df0cls$casecomp])[[df0cls$patid]]));
-#' How many of them have more than one complete visit before initial diagnosis?
-sum(summary(factor(na.omit(df3[,df0cls$casecomp])[[df0cls$patid]]),maxsum = 1000)>1);
-#' # Interrim conclusion:
-#' 
-#' If we are willing to impute/interpolate up to 80% of the missing data, we can
-#' use this:
-df4_imputable <- df3[,with(df0cls,c(global,vitals,diags,smoking,
-                                    'time','tevent','event','tstart',
-                                    'v039_Ethnct',
-                                    intersect(lab,imputable)))];
-#' If we do only complete cases, we need to use fewer missing variables and should
-#' use this:
-df4_casecomp <- df3[,with(df0cls,c(global,vitals,diags,smoking,
-                                   'time','tevent','event','tstart',
-                                   'v039_Ethnct',
-                                   intersect(lab,casecomp)))];
-#' # Now watch, our first visualization of actual data. 
-#' 
-#' Risk of PC diagnosis for patients in the older half of the set
-#' versus patients in the younger half.
-plot(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)>=0&event==1),
-     las=2,xlab='Days Since First Visit',main='PC Diagnosis Rate',bty='n',lwd=2)
-lines(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)<0&event==1),col='red',lwd=2)
-legend('topright',legend=c('Younger','Older'),col=c('red','black'),pch=1,bty='n',cex=1);
-
-#' Take this with a huge grain of salt, though. We still need to add in the healthy
-#' patients of comparable age at first visit and comparable distribution of health 
-#' history lengths who so far never developed PC.
 
 #' In preparation for the control sample, here are the tstart quantiles for
 #' the PC sample:
@@ -383,10 +350,83 @@ split(subset(df3,!is.na(ev))$age_at_visit_days,
   quantile(seq(0,1,by=.1)) -> df3quants;
 
 with(subset(df3,is.na(ev)),split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
-  lapply(function(xx) length(unique(xx)));
+  lapply(function(xx) length(unique(xx))) %>% unlist %>% min -> ctrminbin;
 
 with(subset(df3,is.na(ev)),split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
-  lapply(function(xx) sample(unique(xx),32)) -> ctrsamp;
+  lapply(function(xx) sample(unique(xx),min(ctrminbin))) -> ctrsamp;
+
+
+#' Now let's see how big the smallest decile is without holding out the PC patients
+with(df3,split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% lapply(function(xx) length(unique(xx))) %>% unlist %>% min -> allminbin;
+#' So, 48
+replicate(1000,with(df3,split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
+            lapply(function(xx) sample(unique(xx),allminbin)) %>% unlist %>% as.character) -> resampledFromCombined;
+apply(resampledFromCombined,2,function(xx) nrow(subset(df3,patient_num %in% xx & event ==1)))->pcs;
+#' One average, there are `r mean(pcs)` PC patients and therefore `r 480-mean(pcs)` 
+#' non-PC patients in such a sample, or `r (480-mean(pcs))/480`. In our actual training set we will use 150 
+#' control patients and the 74 PC patients in `trset`. Therefore, `r 150/(150+74)`
+#' of them will be non-PC. This means they will be `r (150/(150+74))/((480-mean(pcs))/480)`
+#' of the actual population. Furthermore, that population itself is 1/10 th of 
+#' the overall patient population in the Family/Geriatric/Internal med clinics.
+#' So our weighing factor should be:
+ctrwt <- 10/((150/(150+74))/((480-mean(pcs))/480)); ctrwt;
+#' Although, later we find out that we lose a lot more samples to missing values,
+#' so the more accurate weight for complete cases is...
+ctrtrwt <- 10/((70/(57+70))/((480-mean(pcs))/480))
+#' Add weighing factor to the data.frame.
+df3$smplwt <- ifelse(is.na(df3$ev),ctrwt,1);
+#' Here is going to be our actual control sample for the training set
+trsetctr <- sample(smpctr,150);
+
+#' Finally. Our training set.
+df4 <- df3[df3[[df0cls$patid]]%in%c(trset,trsetctr),];
+df4$smplwt <- ifelse(is.na(df4$ev),ctrtrwt,1);
+
+#rpcheat <- deflateReport(df2[,with(df0cls,c(patid,lab))]);
+#rp <- deflateReport(df3[,with(df0cls,c(patid,lab))]);
+#rpall <- deflateReport(df3);
+#' The following report can help us decide what to put in which dataset:
+#' * Naive approach: at least 40 patients w/ >=3 complete cases
+#' * Interpolation/Imputation: at least 40 patients w/ >=3 ocurrences of variable
+#' * Score: base that on manual review of vf plots
+#df0cls$casecomp <- setdiff(rownames(subset(df4rpt,HaveCompleteCases>=20)),c(df0cls$nonanalytic));
+#df0cls$imputable <- setdiff(rownames(subset(df4rpt,HaveEnoughData>40)),c(df0cls$nonanalytic));
+
+#' How many case-complete observations actually remain?
+#nrow(na.omit(df3[,df0cls$casecomp]));
+#' How many unique patients are still covered? (remember, we'll have to fit our
+#' model on a training set containing only half of them).
+length(unique(na.omit(df3[,df0cls$casecomp])[[df0cls$patid]]));
+#' How many of them have more than one complete visit before initial diagnosis?
+#sum(summary(factor(na.omit(df3[,df0cls$casecomp])[[df0cls$patid]]),maxsum = 1000)>1);
+#' # Interrim conclusion:
+#' 
+#' If we are willing to impute/interpolate up to 80% of the missing data, we can
+#' use this:
+# df4_imputable <- df3[,with(df0cls,c(global,vitals,diags,smoking,
+#                                     'time','tevent','event','tstart',
+#                                     'v039_Ethnct',
+#                                     intersect(lab,imputable)))];
+#' If we do only complete cases, we need to use fewer missing variables and should
+#' use this:
+# df4_casecomp <- df3[,with(df0cls,c(global,vitals,diags,smoking,
+#                                    'time','tevent','event','tstart',
+#                                    'v039_Ethnct',
+#                                    intersect(lab,casecomp)))];
+#' # Now watch, our first visualization of actual data. 
+#' 
+#' Risk of PC diagnosis for patients in the older half of the set
+#' versus patients in the younger half.
+# plot(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)>=0&event==1),
+#      las=2,xlab='Days Since First Visit',main='PC Diagnosis Rate',bty='n',lwd=2)
+# lines(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)<0&event==1),col='red',lwd=2)
+# legend('topright',legend=c('Younger','Older'),col=c('red','black'),pch=1,bty='n',cex=1);
+# 
+#' Take this with a huge grain of salt, though. We still need to add in the healthy
+#' patients of comparable age at first visit and comparable distribution of health 
+#' history lengths who so far never developed PC.
+
+
 #' To select an age-balanced healthy sample from dataset bar we would do...
 #split(bar,cut(bar$tstart,df2quants,include.lowest = T)) %>% 
 #  lapply(function(xx) sample(unique(xx$patient_num),3)) %>% unlist %>% 
@@ -437,16 +477,16 @@ with(subset(df3,is.na(ev)),split(patient_num,cut(tstart,df3quants,include.lowest
 #' Now, how many non-missing values does each row have? Our convention will be to
 #' save lists of column names in vectors prefixed by `vars_` and lists of column
 #' information in vectors prefixed by `meta_`.
-meta_nonmissing <- sapply(df1,function(xx) sum(!is.na(xx)));
+# meta_nonmissing <- sapply(df1,function(xx) sum(!is.na(xx)));
 #cbind(`Number Non Missing`=meta_nonmissing);
 #' We keep just the variables that have more non-missing values than the threshold
 #' set by `minnm`.
-vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm]
-                                 ,df0cls$keep)));
+# vars_enoughvals <- sort(unique(c(names(meta_nonmissing)[meta_nonmissing>minnm]
+#                                  ,df0cls$keep)));
 #df1 <- df1[,vars_enoughvals];
 
 #' Any crazy number of levels?
-meta_flevels <- sapply(df1[, vs(df1, "f")], function(xx) length(levels(xx)));
+# meta_flevels <- sapply(df1[, vs(df1, "f")], function(xx) length(levels(xx)));
 #cbind(sort(meta_flevels))
 #' 
 #' # TODOs
@@ -457,15 +497,15 @@ meta_flevels <- sapply(df1[, vs(df1, "f")], function(xx) length(levels(xx)));
 #' ** How to construct score?
 #' * DONE Use the `splitCodes()` function
 #' * DONE Write function for remapping certain codes to readable names
-#' * TODO: SMOKING_TOB_USE is another `splitCodes()` case, as is smokeless
+#' * DONE: SMOKING_TOB_USE is another `splitCodes()` case, as is smokeless
 #' * DONE Remove department and just keep spec for Prvdr_Spclt, which makes it another splitCodes()
 #' * TODO: v023_Clr_Ur_5778_6_info is a code-valued lab, figure out how to catch and deal with these
-#' * TODO: Decide on an indicator for 'real' visits
-#' * TODO: finish collapsing the lab-only visits into subsequent office visits
+#' * DONE: Decide on an indicator for 'real' visits (office visit, code 50)
+#' * DONE: finish collapsing the lab-only visits into subsequent office visits
 #' * DONE boxplot or stripchart each lab against units and valueflags
 #' * DONE Anderson-Gill format
-#' * TODO: ~catch~ and fix outliers
-#' * TODO: control patients!
+#' * TODO: ~catch~ and fix outliers (just for safe labs)
+#' * DONE: control patients!
 #' 
 #' # Questions to think about:
 #' 

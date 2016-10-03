@@ -195,7 +195,7 @@ beforeAfter <- function(data,expr,
   tstart <- min(tt); time <- tt-tstart; tcount <- length(time);
   ev <- match(T,eval(eval(expr,envir=data),envir=data));
   if(is.na(ev)){
-    event <- 0; tevent <- max(time)-time; hasevent <- F;
+    event <- 0; tevent <- time-max(time); hasevent <- F;
   } else {
     event <- c(rep(0,ev-1),1,rep(2,length(tt)-ev));
     tevent <- time - time[ev];
