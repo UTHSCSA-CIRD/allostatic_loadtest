@@ -114,6 +114,7 @@ event_definition <- "!is.na(%s)";
 
 #' Read in Data and Review It
 #' dfraw will be where the raw data is read in
+#' Don't make it into `data.table` yet though, that breaks some other steps.
 dfraw <- read_csv(datafile, na = c("", "(null)")
                 ,locale = locale(date_format="%m/%d/%y"));
 
@@ -325,10 +326,11 @@ df0cls$nonanalytic <- union(df0cls$nonanalytic,c('ids','indicators','pn_vis'));
 #' First we create a template from an empty copy of df0
 #' Have to coerce it to `data.frame`, because `data.table`
 #' does not allow dynamic expansion of rows.
-df0dd <- data.frame(subset(df0,F)); df0dd[1,]<-NA;
-df1 <- df0[,{df0dd[1,]<-lapply(.SD,lastNonMissing);df0dd;},by=groupids];
+df0dd <- data.frame(subset(df0,F)[,df0cls$nonlists]); df0dd[1,]<-NA;
+df1 <- data.table(df0[,df0cls$nonlists])[,{df0dd[1,]<-lapply(.SD,lastNonMissing);df0dd;},by=groupids];
 
-split(df1,df1[,df0cls$patid]) %>% 
+#' Note coercion to data.frame here... never know when data.table has a surprise in store
+split(data.frame(df1),df1[[df0cls$patid]]) %>% 
   lapply(beforeAfter,parse(text = paste0(df0cls$event,collapse='|'))[[1]]) %>% 
   bind_rows %>% subset(event<2&(is.na(ev)|ev>1)) -> df2;
 
@@ -367,9 +369,9 @@ if(!exists('trsetctr')){
 }
 
 #' Now let's see how big the smallest decile is without holding out the PC patients
-with(df3,split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% lapply(function(xx) length(unique(xx))) %>% unlist %>% min -> allminbin;
+with(data.frame(df3),split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% lapply(function(xx) length(unique(xx))) %>% unlist %>% min -> allminbin;
 #' So, 48
-replicate(1000,with(df3,split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
+replicate(1000,with(data.frame(df3),split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
             lapply(function(xx) sample(unique(xx),allminbin)) %>% unlist %>% as.character) -> resampledFromCombined;
 apply(resampledFromCombined,2,function(xx) nrow(subset(df3,patient_num %in% xx & event ==1)))->pcs;
 #' One average, there are `r mean(pcs)` PC patients and therefore `r 480-mean(pcs)` 
@@ -382,7 +384,7 @@ apply(resampledFromCombined,2,function(xx) nrow(subset(df3,patient_num %in% xx &
 ctrwt <- 10/((150/(150+74))/((480-mean(pcs))/480)); ctrwt;
 #' Although, later we find out that we lose a lot more samples to missing values,
 #' so the more accurate weight for complete cases is...
-ctrtrwt <- 10/((70/(57+70))/((480-mean(pcs))/480))
+ctrtrwt <- 10/((70/(57+70))/((480-mean(pcs))/480)); ctrtrwt;
 #' Add weighing factor to the data.frame.
 df3$smplwt <- ifelse(is.na(df3$ev),ctrwt,1);
 #' Here is going to be our actual control sample for the training set
@@ -391,6 +393,16 @@ if(!exists('trsetctr')) trsetctr <- sample(smpctr,150);
 #' Finally. Our training set.
 df4 <- df3[df3[[df0cls$patid]]%in%c(trset,trsetctr),];
 df4$smplwt <- ifelse(is.na(df4$ev),ctrtrwt,1);
+
+#' This version will be for complete case
+df4[,df0cls$safelabs] %>% na.omit %>% rownames %>% `[`(df4,.,) -> df4;
+df4[,with(df0cls,c(safevitals,safelabs))] <- apply(df4[,with(df0cls,c(safevitals,safelabs))],2,scale);
+
+df4cc <- df4[rownames(na.omit(df4[,with(df0cls,safelabs,safevitals)])),];
+#' Visualize multi-collinearity
+library(psy);
+sphpca(data.frame(df4[,with(df0cls,c(safevitals,safelabs))]));
+
 
 #rpcheat <- deflateReport(df2[,with(df0cls,c(patid,lab))]);
 #rp <- deflateReport(df3[,with(df0cls,c(patid,lab))]);
