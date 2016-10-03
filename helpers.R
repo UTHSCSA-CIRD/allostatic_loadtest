@@ -94,14 +94,15 @@ correct <- function(xx, range, conv){
 
 lastNonMissing <- function(xx,tfmethod=c('any','last'),
                            listmethod=c('combine','last'),missingLevelsEquiv=c()){
+  stopifnot(is.atomic(xx))
   if(length(xx)==1) return(xx);
   if(all(is.na(xx))) return(NA);
   tfmethod<-match.arg(tfmethod);
   if(is.logical(xx)) {
     out <- switch(tfmethod,
-                  any=any(xx),
+                  any=any(xx,na.rm = T),
                   last=tail(na.omit(xx),1));
-    return(out);
+    if(length(out)<1) return(NA) else return(out[1]);
   }
   if(!is.atomic(xx)) {
     listmethod<-match.arg(listmethod);
@@ -119,7 +120,7 @@ lastNonMissing <- function(xx,tfmethod=c('any','last'),
                     last=tail(na.omit(xx),1)));
     }
   }
-  return(last(na.omit(xx)));
+  out<-last(na.omit(xx)); if(length(out)<1) return(NA) else return(out);
 }
 
 #' For data.frame `data` and column `name` (character) replace everything not 

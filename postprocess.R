@@ -10,6 +10,7 @@
 require("readr");
 require('rjson');
 require("dplyr");
+require('data.table');
 require("ggplot2");
 source("helpers.R");
 
@@ -316,9 +317,16 @@ df0cls$nonanalytic <- union(df0cls$nonanalytic,c('ids','indicators','pn_vis'));
 
 #' Change of plan from below, for how to invoke the collapsing of lab-visits into
 #' office visits.
-split(df0[,df0cls$nonlists],df0$groupids) %>% 
-  lapply(function(xx) if(nrow(xx)==1) return(xx) else sapply(xx,lastNonMissing,simplify=F) %>% data.frame) %>% 
-  bind_rows -> df1;
+#' Old, slow way
+#split(df0[,df0cls$nonlists],df0$groupids) %>% 
+#  lapply(function(xx) if(nrow(xx)==1) return(xx) else sapply(xx,lastNonMissing,simplify=F) %>% data.frame) %>% 
+#  bind_rows -> df1;
+#' New, faster (and shorter) way
+#' First we create a template from an empty copy of df0
+#' Have to coerce it to `data.frame`, because `data.table`
+#' does not allow dynamic expansion of rows.
+df0dd <- data.frame(subset(df0,F)); df0dd[1,]<-NA;
+df1 <- df0[,{df0dd[1,]<-lapply(.SD,lastNonMissing);df0dd;},by=groupids];
 
 split(df1,df1[,df0cls$patid]) %>% 
   lapply(beforeAfter,parse(text = paste0(df0cls$event,collapse='|'))[[1]]) %>% 
