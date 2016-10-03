@@ -395,14 +395,18 @@ df4 <- df3[df3[[df0cls$patid]]%in%c(trset,trsetctr),];
 df4$smplwt <- ifelse(is.na(df4$ev),ctrtrwt,1);
 
 #' This version will be for complete case
-df4[,df0cls$safelabs] %>% na.omit %>% rownames %>% `[`(df4,.,) -> df4;
-df4[,with(df0cls,c(safevitals,safelabs))] <- apply(df4[,with(df0cls,c(safevitals,safelabs))],2,scale);
+df4[,with(df0cls,c(safevitals,safelabs))] %>% na.omit %>% rownames %>% `[`(df4,.,) -> df4;
+df4[,with(df0cls,c('tstart',safevitals,safelabs))] <- apply(df4[,with(df0cls,c('tstart',safevitals,safelabs))],2,scale);
 
-df4cc <- df4[rownames(na.omit(df4[,with(df0cls,safelabs,safevitals)])),];
+df4cc <- df4[rownames(na.omit(df4[,with(df0cls,c(safelabs,safevitals))])),];
 #' Visualize multi-collinearity
 library(psy);
 sphpca(data.frame(df4[,with(df0cls,c(safevitals,safelabs))]));
 
+#' Survival models
+library(survival);
+cph0 <- coxph(Surv(time,event)~ tstart+v088_Pls_num+v100_Sstlc_Prsr_num+v109_Wght_oz_num+v019_C_SrPl_sCnc_2028_9_num+v021_Clcm_SrPl_mCnc_17861_6_num+v027_Crt_SrPl_mCnc_2160_0_num+v045_Glcs_SrPl_mCnc_2345_7_num+v083_Ptsm_SrPl_sCnc_2823_3_num+v097_Sdm_SrPl_sCnc_2951_2_num+cluster(patient_num),df4cc,weights = df4cc$smplwt);
+cph0aic <- step(cph0,scope=list(lower=~tstart+cluster(patient_num),upper=~tstart+v034_Dstlc_Prsr_num+v088_Pls_num+v100_Sstlc_Prsr_num+v109_Wght_oz_num+v009_BN_SrPl_mCnc_3094_0_num+v019_C_SrPl_sCnc_2028_9_num+v021_Clcm_SrPl_mCnc_17861_6_num+v022_Chlrd_SrPl_sCnc_2075_0_num+v027_Crt_SrPl_mCnc_2160_0_num+v045_Glcs_SrPl_mCnc_2345_7_num+v083_Ptsm_SrPl_sCnc_2823_3_num+v097_Sdm_SrPl_sCnc_2951_2_num+cluster(patient_num)),direction='both');
 
 #rpcheat <- deflateReport(df2[,with(df0cls,c(patid,lab))]);
 #rp <- deflateReport(df3[,with(df0cls,c(patid,lab))]);
