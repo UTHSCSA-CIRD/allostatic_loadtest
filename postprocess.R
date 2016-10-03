@@ -402,6 +402,8 @@ df4cc <- df4[rownames(na.omit(df4[,with(df0cls,c(safelabs,safevitals))])),];
 #' Visualize multi-collinearity
 library(psy);
 sphpca(data.frame(df4[,with(df0cls,c(safevitals,safelabs))]));
+# heatmap
+# scatterplot matrix
 
 #' Survival models
 library(survival);
