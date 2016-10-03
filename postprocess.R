@@ -30,9 +30,10 @@ minnm <- 4;
 #' class are binned together in the 'Other' category
 minvs <- 18;
 
-#' The training set was defined once, near the end of this script.
-#' From now on it must remain static, at the following value:
+#' The training set and control training set were defined once, near the end of this script.
+#' From now on they must remain static, at the following values:
 trset <- c('4668579','4639333','4025815','4610333','4451646','5395328','4135687','5601609','3934070','5615572','4281679','4303649','4091860','5529362','4123946','5411073','4596447','5069805','3883587','3942296','5499986','5495319','4314613','4822143','5476090','4083814','4157378','5447492','3971116','5375977','4288851','4316696','3919462','4216406','5394713','5270628','5158127','4888638','5608673','3918313','3901964','5237956','5609476','5044537','5562742','4712658','5631163','4207786','4652271','5632107','4225291','4222985','5302101','5533523','5294228','4031582','5623393','5636855','4028511','5433112','4893191','4437214','4186597','4192578','3854215','4927155','4680640','4929015','4827229','4282324','4801094','5095790','3866081','5068675');
+trsetctr <- c('4666105','4121041','5150369','4738333','4137444','4705027','5314101','4729094','3780606','4255169','4904234','4094606','5570643','5394798','5412335','5425457','4307097','4474620','4702035','4972124','5255189','3778123','4163621','4550401','3999892','4790240','5067431','4343005','4164096','5260836','5205367','4235239','3783330','4370225','4872870','5533837','5099659','4813273','4145966','5375190','5000277','3785966','4216569','4641892','4126881','4077354','5003694','4235229','5156176','4731278','4198662','3793194','5161804','3810226','5005072','4344854','5369225','5496383','5394673','5343282','4198829','5062097','4168668','3998687','5585093','3931787','5100827','4854070','3810868','3813464','4500029','5515735','3926477','5219911','4465484','4211912','5641204','5284502','5334742','4769108','4909771','5598522','5237898','4697217','4283927','5612635','4932733','4608623','4833100','4777769','4514549','4041503','5432241','4691755','5297623','4046932','5567273','3978506','4041889','4779867','5022956','4559444','5302710','5403136','4735590','5530538','3779219','4258578','4073874','4437572','4830693','4080508','4324070','4840386','5602521','3812468','4364020','4682210','4076374','4701147','4458290','5520452','4337124','5094756','4868417','4522663','5376061','5214022','4503866','3920833','4664601','4826674','3843651','5232510','4831201','4551705','5445933','4565747','5094339','4206683','4117872','5150902','4977389','5094345','5601726','4249743','4621289','4591382','3845801','4107724');
 #' Date range/var/dbuilder1/allopr/allo_05_combined.csv
 daterange <- as.POSIXct(as.Date(c(
   '2006-01-01','2016-06-01'
@@ -349,12 +350,13 @@ split(subset(df3,!is.na(ev))$age_at_visit_days,
       subset(df3,!is.na(ev))[[df0cls$patid]],drop = T) %>% sapply(min) %>% 
   quantile(seq(0,1,by=.1)) -> df3quants;
 
-with(subset(df3,is.na(ev)),split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
-  lapply(function(xx) length(unique(xx))) %>% unlist %>% min -> ctrminbin;
-
-with(subset(df3,is.na(ev)),split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
-  lapply(function(xx) sample(unique(xx),min(ctrminbin))) -> ctrsamp;
-
+if(!exists('trsetctr')){
+  with(subset(df3,is.na(ev)),split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
+    lapply(function(xx) length(unique(xx))) %>% unlist %>% min -> ctrminbin;
+  
+  with(subset(df3,is.na(ev)),split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% 
+    lapply(function(xx) sample(unique(xx),min(ctrminbin))) %>% unlist -> smpctr;
+}
 
 #' Now let's see how big the smallest decile is without holding out the PC patients
 with(df3,split(patient_num,cut(tstart,df3quants,include.lowest = T))) %>% lapply(function(xx) length(unique(xx))) %>% unlist %>% min -> allminbin;
@@ -376,7 +378,7 @@ ctrtrwt <- 10/((70/(57+70))/((480-mean(pcs))/480))
 #' Add weighing factor to the data.frame.
 df3$smplwt <- ifelse(is.na(df3$ev),ctrwt,1);
 #' Here is going to be our actual control sample for the training set
-trsetctr <- sample(smpctr,150);
+if(!exists('trsetctr')) trsetctr <- sample(smpctr,150);
 
 #' Finally. Our training set.
 df4 <- df3[df3[[df0cls$patid]]%in%c(trset,trsetctr),];
