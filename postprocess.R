@@ -12,6 +12,7 @@ require('rjson');
 require("dplyr");
 require('data.table');
 require("ggplot2");
+require('psy');
 source("helpers.R");
 
 #' Lookup tables
@@ -91,7 +92,27 @@ rxp <- list(
   safelabs =     c('_3094_0_num$','_2028_9_num$','_17861_6_num$','_2075_0_num$',
                      '_2160_0_num$','_2345_7_num$','_2823_3_num$','_2951_2_num$'),
   # ditto for labs
-  safevitals =   c('_.stlc_Prsr_num$','_Pls_num','_Wght_oz_num')
+  safevitals =   c('_.stlc_Prsr_num$','_Pls_num','_Wght_oz_num'),
+  vfreject =     c('_Bsphls_At_GENERIC_KUH_COMPONENT_ID_182_vf','_HDL_CHLSTRL_GENERIC_KUH_COMPONENT_ID_3268_vf',
+                   '_Lmphcts_At_GENERIC_KUH_COMPONENT_ID_190_vf','_Mncts_lk_At_5905_5_vf',
+                   '_Sqms__ar_UrnS_11277_1_vf','_Fr_SrPl_mCnc_3024_7_vf',
+                   '_WBC__Bld_At_6690_2_vf'),
+  # These vfs can at least make a pairwise complete correlation matrix
+  vfuse =        c('_ALP_SrPl_cCnc_6768_6_vf','_ALT_SrPl_cCnc_1742_6_vf',
+                   '_AST_SrPl_cCnc_1920_8_vf','_Albmn_SrPl_mCnc_1751_7_vf',
+                   '_BN_SrPl_mCnc_3094_0_vf','_Blrb_SrPl_mCnc_1975_2_vf',
+                   '_C_SrPl_sCnc_2028_9_vf','_Clcm_SrPl_mCnc_17861_6_vf',
+                   '_Chlrd_SrPl_sCnc_2075_0_vf','_Crt_SrPl_mCnc_2160_0_vf',
+                   '_Glcs_SrPl_mCnc_2345_7_vf','_Hct_VFr_Bld_At_4544_3_vf',
+                   '_Hgb_Bld_mCnc_GENERIC_KUH_COMPONENT_ID_3282_vf',
+                   '_MCH_RBC_Qn_At_GENERIC_KUH_COMPONENT_ID_4283_vf',
+                   '_MCHC_At_mCnc_GENERIC_KUH_COMPONENT_ID_4284_vf',
+                   '_MCV_RBC_At_GENERIC_KUH_COMPONENT_ID_4285_vf',
+                   '_Pltlt_At_GENERIC_KUH_COMPONENT_ID_5341_vf',
+                   '_Ptsm_SrPl_sCnc_2823_3_vf','_Prt_SrPl_mCnc_2885_2_vf',
+                   '_RBC__Bld_At_GENERIC_KUH_COMPONENT_ID_5638_vf',
+                   '_RDW_RBC_At_Rt_GENERIC_KUH_COMPONENT_ID_5629_vf',
+                   '_Sdm_SrPl_sCnc_2951_2_vf')
 );
 
 #' This one is separate because it's done to column values, not column names
@@ -266,6 +287,11 @@ for(ii in df0cls$vf) {
   df0[!is.na(df0[[nii]])&is.na(df0[[ii]]),ii] <- 'N';
 }
 
+#' VFs that are too sparse to use
+df0cls$vfreject <- lazygrep(rxp$vfreject,df3);
+#' VFs that are non-sparse enough that they can be part of a correlation matrix
+df0cls$vfuse <- lazygrep(rxp$vfuse,df3);
+
 #' Review values
 if(plotvfs)
   for(ii in intersect(gsub('_num$','_vf',df0cls$safelabs),df0cls$vf)){
@@ -395,21 +421,32 @@ df4 <- df3[df3[[df0cls$patid]]%in%c(trset,trsetctr),];
 df4$smplwt <- ifelse(is.na(df4$ev),ctrtrwt,1);
 
 #' This version will be for complete case
-df4[,with(df0cls,c(safevitals,safelabs))] %>% na.omit %>% rownames %>% `[`(df4,.,) -> df4;
 df4[,with(df0cls,c('tstart',safevitals,safelabs))] <- apply(df4[,with(df0cls,c('tstart',safevitals,safelabs))],2,scale);
+df4[,with(df0cls,c(safevitals,safelabs))] %>% na.omit %>% rownames %>% `[`(df4,.,) -> df4cc;
 
-df4cc <- df4[rownames(na.omit(df4[,with(df0cls,c(safelabs,safevitals))])),];
+#df4cc <- df4[rownames(na.omit(df4[,with(df0cls,c(safelabs,safevitals))])),];
 #' Visualize multi-collinearity
-library(psy);
-sphpca(data.frame(df4[,with(df0cls,c(safevitals,safelabs))]));
+#sphpca(data.frame(df4[,with(df0cls,c(safevitals,safelabs))]));
 # heatmap
 # scatterplot matrix
 
-#' Survival models
+#' Survival models, using complete cases
 library(survival);
 cph0 <- coxph(Surv(time,event)~ tstart+v088_Pls_num+v100_Sstlc_Prsr_num+v109_Wght_oz_num+v019_C_SrPl_sCnc_2028_9_num+v021_Clcm_SrPl_mCnc_17861_6_num+v027_Crt_SrPl_mCnc_2160_0_num+v045_Glcs_SrPl_mCnc_2345_7_num+v083_Ptsm_SrPl_sCnc_2823_3_num+v097_Sdm_SrPl_sCnc_2951_2_num+cluster(patient_num),df4cc,weights = df4cc$smplwt);
-cph0aic <- step(cph0,scope=list(lower=~tstart+cluster(patient_num),upper=~tstart+v034_Dstlc_Prsr_num+v088_Pls_num+v100_Sstlc_Prsr_num+v109_Wght_oz_num+v009_BN_SrPl_mCnc_3094_0_num+v019_C_SrPl_sCnc_2028_9_num+v021_Clcm_SrPl_mCnc_17861_6_num+v022_Chlrd_SrPl_sCnc_2075_0_num+v027_Crt_SrPl_mCnc_2160_0_num+v045_Glcs_SrPl_mCnc_2345_7_num+v083_Ptsm_SrPl_sCnc_2823_3_num+v097_Sdm_SrPl_sCnc_2951_2_num+cluster(patient_num)),direction='both');
+cph0aic <- step(cph0,scope=list(lower=~tstart+cluster(patient_num),upper=~(tstart+v088_Pls_num+v100_Sstlc_Prsr_num+v109_Wght_oz_num+v009_BN_SrPl_mCnc_3094_0_num+v019_C_SrPl_sCnc_2028_9_num+v021_Clcm_SrPl_mCnc_17861_6_num+v022_Chlrd_SrPl_sCnc_2075_0_num+v027_Crt_SrPl_mCnc_2160_0_num+v045_Glcs_SrPl_mCnc_2345_7_num+v083_Ptsm_SrPl_sCnc_2823_3_num+v097_Sdm_SrPl_sCnc_2951_2_num)+cluster(patient_num)),direction='both');
+summary(cph0aic);
 
+#' Now with a score: the fraction of non-missing VF's (int the vfuse list) that 
+#' are unequal to 'N' (normal range)
+df4$vfscore <- apply(df4[,df0cls$vfuse],1,function(xx) mean(xx!='N',na.rm=T));
+#' Keep the ones that have non NA scores and, let's say, body weights
+df4sc <- df4[rownames(subset(df4,!is.na(vfscore)&!is.na(v109_Wght_oz_num))),];
+#' And here we get disappointing results-- not a good predictor
+cphs0<-coxph(Surv(time,event)~vfscore+tstart+v109_Wght_oz_num+cluster(patient_num),df4sc,weights = df4sc$smplwt);
+#' Ditto interactions. 
+cphs1 <- step(cphs0,scope=list(lower=~tstart+cluster(patient_num),upper=~(tstart+vfscore+v109_Wght_oz_num)^2+cluster(patient_num)));
+#' So either we need to calculate the score on a more focused group of variables
+#' or there is just too much missing data even for scores
 #rpcheat <- deflateReport(df2[,with(df0cls,c(patid,lab))]);
 #rp <- deflateReport(df3[,with(df0cls,c(patid,lab))]);
 #rpall <- deflateReport(df3);
