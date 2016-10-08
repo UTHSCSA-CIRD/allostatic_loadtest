@@ -112,7 +112,24 @@ rxp <- list(
                    '_Ptsm_SrPl_sCnc_2823_3_vf','_Prt_SrPl_mCnc_2885_2_vf',
                    '_RBC__Bld_At_GENERIC_KUH_COMPONENT_ID_5638_vf',
                    '_RDW_RBC_At_Rt_GENERIC_KUH_COMPONENT_ID_5629_vf',
-                   '_Sdm_SrPl_sCnc_2951_2_vf')
+                   '_Sdm_SrPl_sCnc_2951_2_vf'),
+  # dare we even hope for predictors?
+  possiblepreds =c('_Pltlt_At_GENERIC_KUH_COMPONENT_ID_5341_num',
+                   '_Hgb_Bld_mCnc_GENERIC_KUH_COMPONENT_ID_3282_num'),
+  vfpreds =      c('_RBC__Bld_At_GENERIC_KUH_COMPONENT_ID_5638_vf',
+                   '_Hct_VFr_Bld_At_4544_3_vf','_Hgb_Bld_mCnc_GENERIC_KUH_COMPONENT_ID_3282_vf',
+                   '_Glcs_SrPl_mCnc_2345_7_vf','_Sdm_SrPl_sCnc_2951_2_vf',
+                   '_RDW_RBC_At_Rt_GENERIC_KUH_COMPONENT_ID_5629_vf',
+                   '_Pltlt_At_GENERIC_KUH_COMPONENT_ID_5341_vf',
+                   '_Prt_SrPl_mCnc_2885_2_vf','_Chlrd_SrPl_sCnc_2075_0_vf',
+                   '_Ptsm_SrPl_sCnc_2823_3_vf'),
+  numpreds =     c('_Pltlt_At_GENERIC_KUH_COMPONENT_ID_5341_num',
+                   '_Hct_VFr_Bld_At_4544_3_num',
+                   '_Hgb_Bld_mCnc_GENERIC_KUH_COMPONENT_ID_3282_num',
+                   '_RBC__Bld_At_GENERIC_KUH_COMPONENT_ID_5638_num',
+                   '_Glcs_SrPl_mCnc_2345_7_num','_Trgl_SrPl_mCnc_2571_8_num',
+                   '_Chlrd_SrPl_sCnc_2075_0_num','_Sdm_SrPl_sCnc_2951_2_num',
+                   '_Wght_oz_num')
 );
 
 #' This one is separate because it's done to column values, not column names
@@ -291,6 +308,7 @@ for(ii in df0cls$vf) {
 df0cls$vfreject <- lazygrep(rxp$vfreject,df3);
 #' VFs that are non-sparse enough that they can be part of a correlation matrix
 df0cls$vfuse <- lazygrep(rxp$vfuse,df3);
+df0cls$vfpreds <- lazygrep(rxp$vfpreds,df3);
 
 #' Review values
 if(plotvfs)
@@ -441,12 +459,44 @@ summary(cph0aic);
 df4$vfscore <- apply(df4[,df0cls$vfuse],1,function(xx) mean(xx!='N',na.rm=T));
 #' Keep the ones that have non NA scores and, let's say, body weights
 df4sc <- df4[rownames(subset(df4,!is.na(vfscore)&!is.na(v109_Wght_oz_num))),];
+#' But we don't get many more complete cases than we did above
+dim(df4sc);
 #' And here we get disappointing results-- not a good predictor
 cphs0<-coxph(Surv(time,event)~vfscore+tstart+v109_Wght_oz_num+cluster(patient_num),df4sc,weights = df4sc$smplwt);
 #' Ditto interactions. 
 cphs1 <- step(cphs0,scope=list(lower=~tstart+cluster(patient_num),upper=~(tstart+vfscore+v109_Wght_oz_num)^2+cluster(patient_num)));
 #' So either we need to calculate the score on a more focused group of variables
 #' or there is just too much missing data even for scores
+#' 
+#' Here is at least _a_ way to find predictors: 
+#' 
+#' Create (sloppy) correlation matrix
+data.matrix(df4[,c('hasevent',setdiff(names(df4),c('ev',df0cls$nonanalytic)))]) %>%
+  cor(use='pairwise') -> cm;
+#cm <- cor(data.matrix(df4[,c('hasevent',setdiff(names(df4),c('ev',df0cls$nonanalytic)))]),use='pairwise');
+cm.missing <- sort(apply(cm,2,function(xx) sum(is.na(xx))),decreasing = T);
+seq(min(cm.missing),max(cm.missing)) %>% 
+  sapply(function(xx){
+    xxn<-names(cm.missing)[cm.missing<xx];
+    c(xx,dim(na.omit(cm[xxn,xxn])));
+    }) %>% 
+  t %>% data.frame %>% setNames(c('missing','rows','cols')) -> cm.nonmiss;
+
+plot(cols~missing,cm.nonmiss,type='l');
+lines(rows~missing,cm.nonmiss,type='l',col='red');
+
+misscutoff <- cm.nonmiss$missing[which.max(cm.nonmiss$rows)]; misscutoff;
+abline(v=misscutoff);
+cnonmissnames0 <- names(cm.missing)[cm.missing<misscutoff];
+#' This last vector contains the names of variables that are at least present
+#' enough to have an NA-less pairwise.complete correlation matrix
+cnonmissnames1 <- rownames(na.omit(cm[cnonmissnames0,cnonmissnames0]));
+
+#' Sort on strength of correlation with having or not having PC
+sort(abs(cm[cnonmissnames1,'hasevent']),decr=T);
+sort(abs(cm[grep('_num$',cnonmissnames1,val=T),'hasevent']),decr=T);
+sort(abs(cm[grep('_vf$',cnonmissnames1,val=T),'hasevent']),decr=T);
+
 #rpcheat <- deflateReport(df2[,with(df0cls,c(patid,lab))]);
 #rp <- deflateReport(df3[,with(df0cls,c(patid,lab))]);
 #rpall <- deflateReport(df3);
