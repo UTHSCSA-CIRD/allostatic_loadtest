@@ -305,10 +305,10 @@ for(ii in df0cls$vf) {
 }
 
 #' VFs that are too sparse to use
-df0cls$vfreject <- lazygrep(rxp$vfreject,df3);
+df0cls$vfreject <- lazygrep(rxp$vfreject,df0);
 #' VFs that are non-sparse enough that they can be part of a correlation matrix
-df0cls$vfuse <- lazygrep(rxp$vfuse,df3);
-df0cls$vfpreds <- lazygrep(rxp$vfpreds,df3);
+df0cls$vfuse <- lazygrep(rxp$vfuse,df0);
+df0cls$vfpreds <- lazygrep(rxp$vfpreds,df0);
 
 #' Review values
 if(plotvfs)
