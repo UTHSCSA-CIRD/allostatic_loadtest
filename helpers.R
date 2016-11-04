@@ -177,7 +177,7 @@ lazygrep <- function(pattlist,target,invert=F){
 #' @param data A \code{data.frame} (required)
 #' @param expr An expression that will be evaluated in the scope of \code{data} (required)
 #' @param timevar An atomic \code{character} vector with the name of the column in \code{data} that will be treated as the time variable. Should be of a data-type that supports subtraction. Default: 'age_at_visit_days'
-#' @param retuls A \code{character} vector of what results to return. One or more of \code{time}, \code{tevent}, or \code{event}
+#' @param result A \code{character} vector of what results to return. One or more of \code{time}, \code{tevent}, or \code{event}
 #' @param returnDF Should the selected result be returned as part of the original \code{data.frame} (TRUE, default) or by itself?
 beforeAfter <- function(data,expr,
                         timevar='age_at_visit_days',insureOrder=F,

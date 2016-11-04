@@ -498,14 +498,14 @@ sort(abs(cm[grep('_num$',cnonmissnames1,val=T),'hasevent']),decr=T);
 sort(abs(cm[grep('_vf$',cnonmissnames1,val=T),'hasevent']),decr=T);
 
 #rpcheat <- deflateReport(df2[,with(df0cls,c(patid,lab))]);
-#rp <- deflateReport(df3[,with(df0cls,c(patid,lab))]);
-#rpall <- deflateReport(df3);
+rp <- deflateReport(df3[,with(df0cls,c(patid,lab))]);
+rpall <- deflateReport(df3);
 #' The following report can help us decide what to put in which dataset:
 #' * Naive approach: at least 40 patients w/ >=3 complete cases
 #' * Interpolation/Imputation: at least 40 patients w/ >=3 ocurrences of variable
 #' * Score: base that on manual review of vf plots
-#df0cls$casecomp <- setdiff(rownames(subset(df4rpt,HaveCompleteCases>=20)),c(df0cls$nonanalytic));
-#df0cls$imputable <- setdiff(rownames(subset(df4rpt,HaveEnoughData>40)),c(df0cls$nonanalytic));
+df0cls$casecomp <- setdiff(rownames(subset(df4rpt,HaveCompleteCases>=20)),c(df0cls$nonanalytic));
+# df0cls$imputable <- setdiff(rownames(subset(df4rpt,HaveEnoughData>40)),c(df0cls$nonanalytic));
 
 #' How many case-complete observations actually remain?
 #nrow(na.omit(df3[,df0cls$casecomp]));
@@ -518,24 +518,24 @@ length(unique(na.omit(df3[,df0cls$casecomp])[[df0cls$patid]]));
 #' 
 #' If we are willing to impute/interpolate up to 80% of the missing data, we can
 #' use this:
-# df4_imputable <- df3[,with(df0cls,c(global,vitals,diags,smoking,
-#                                     'time','tevent','event','tstart',
-#                                     'v039_Ethnct',
-#                                     intersect(lab,imputable)))];
+df4_imputable <- df3[,with(df0cls,c(global,vitals,diags,smoking,
+                                     'time','tevent','event','tstart',
+                                     'v039_Ethnct',
+                                     intersect(lab,imputable)))];
 #' If we do only complete cases, we need to use fewer missing variables and should
 #' use this:
-# df4_casecomp <- df3[,with(df0cls,c(global,vitals,diags,smoking,
-#                                    'time','tevent','event','tstart',
-#                                    'v039_Ethnct',
-#                                    intersect(lab,casecomp)))];
+df4_casecomp <- df3[,with(df0cls,c(global,vitals,diags,smoking,
+                                   'time','tevent','event','tstart',
+                                   'v039_Ethnct',
+                                   intersect(lab,casecomp)))];
 #' # Now watch, our first visualization of actual data. 
 #' 
 #' Risk of PC diagnosis for patients in the older half of the set
 #' versus patients in the younger half.
-# plot(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)>=0&event==1),
-#      las=2,xlab='Days Since First Visit',main='PC Diagnosis Rate',bty='n',lwd=2)
-# lines(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)<0&event==1),col='red',lwd=2)
-# legend('topright',legend=c('Younger','Older'),col=c('red','black'),pch=1,bty='n',cex=1);
+plot(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)>=0&event==1),
+     las=2,xlab='Days Since First Visit',main='PC Diagnosis Rate',bty='n',lwd=2)
+lines(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)<0&event==1),col='red',lwd=2)
+legend('topright',legend=c('Younger','Older'),col=c('red','black'),pch=1,bty='n',cex=1);
 # 
 #' Take this with a huge grain of salt, though. We still need to add in the healthy
 #' patients of comparable age at first visit and comparable distribution of health 
@@ -552,8 +552,8 @@ length(unique(na.omit(df3[,df0cls$casecomp])[[df0cls$patid]]));
 #' throw out the uninformative ones, and then construct a (relatively simple) 
 #' score on the rest.
 
-#rept <- deflateDF(subset(df1,event<2&!patient_num%in%preexising)[,setdiff(names(df1),df0cls$nonanalytic)],
-#                  df0cls$lab,sumThresh = 2,output='re'); 
+# rept <- deflateDF(subset(df1,event<2&!patient_num%in%preexising)[,setdiff(names(df1),df0cls$nonanalytic)],
+#                  df0cls$lab,sumThresh = 2,output='re');
 #' Create Anderson-Gill format table for time-to-event analysis. Basically
 #' for each patient, stop on their first diagnosis and create column of 0,1
 #' censoring indicators. The catch is, if after doing that a patient still has 
