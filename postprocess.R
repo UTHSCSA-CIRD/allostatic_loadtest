@@ -17,7 +17,7 @@ source("helpers.R");
 
 #' The name of the saved session file
 sessionfile <- 'allo_session.rdata';
-load(sessionfile);
+if(sessionfile %in% list.files()) load(sessionfile);
 
 if(!exists('csv2load')){
 csv2load<-list(
@@ -28,7 +28,7 @@ csv2load<-list(
 );
 }
 
-#' Lookup tables
+#' Load any CSV files whose tables are missing
 for(ii in setdiff(names(csv2load),ls())) assign(ii,read_csv(
   csv2load[[ii]],na=c('','(null)'),locale = locale(date_format="%m/%d/%y")));
 
@@ -169,8 +169,8 @@ event_definition <- "!is.na(%s)";
 #' Read in Data and Review It
 #' dfraw will be where the raw data is read in
 #' Don't make it into `data.table` yet though, that breaks some other steps.
-dfraw <- read_csv(datafile, na = c("", "(null)")
-                ,locale = locale(date_format="%m/%d/%y"));
+# dfraw <- read_csv(datafile, na = c("", "(null)")
+#                 ,locale = locale(date_format="%m/%d/%y"));
 
 rxp$event %>% lazygrep(names(dfraw)) %>% sprintf(event_definition,.) %>% 
   paste0(collapse='|') %>% parse(text=.) %>% `[[`(1) -> event_expression;
@@ -572,7 +572,7 @@ lines(survfit(
 #' 
 #' Let's save this session environment-- it's starting to take longer and longer 
 #' to run this script otherwise.
-save.image('allo_session.rdata');
+save.image(sessionfile);
 
 #' To select an age-balanced healthy sample from dataset bar we would do...
 #split(bar,cut(bar$tstart,df2quants,include.lowest = T)) %>% 
