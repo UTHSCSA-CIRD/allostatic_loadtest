@@ -52,3 +52,437 @@ guessnum <- function(xx,exclude='',returnval=F,tolerance=.11){
   out <- sum(is.na(as.numeric(as.character(xx))))/length(xx);
   if(returnval) out else out <= tolerance;
 }
+
+snu <- function(teststring = "Crtsl", df =  df1) {
+  # Take a variable name summarize the number and unit columns, one on top of the other
+  return(
+    list(summary(df[, grepl(paste0(teststring, ".*num"), names(df))])
+        ,summary(df[, grepl(paste0(teststring, ".*unit"), names(df))])
+    )
+  )
+}
+
+
+correct <- function(xx, range, conv){
+# xx:              numeric vector of input data
+# range:        biologically plausible range for that vector
+# conv:          vector of unit conversion factors
+
+   outliers <- findInterval(xx,range);
+   # those below the range will be 0, those within, 1, and those above will be 2
+   # for each value in xx whose corresponding value in outliers is not 1
+   # try multiplying by conv and stop with the first one that gives a value within the range
+   # replace the original element of xx with that value and move on to the next one
+   # if none of them cause that element of xx fall wthin the normal range, 
+   # replace that element in xx with NA
+   # return(xx);
+   holder <- xx %*%  t(conv)
+   holder2 <- matrix(ifelse(findInterval(holder, range) != 1, NA, 1), ncol = length(conv))
+   xx2 <- xx
+   xx2[outliers != 1] <- NA
+   choices <-matrix(holder*holder2, ncol = length(conv))
+   for (ii in 1:length(xx2)) {
+     for(iii in 1:length(conv)) {
+       if (is.na(xx2[ii]) == TRUE) {
+         if(is.na(choices[ii, iii]) == FALSE) xx2[ii] <- choices[ii, iii]
+       }
+      }
+     }
+   return(xx2)   
+}
+
+
+lastNonMissing <- function(xx,tfmethod=c('any','last'),
+                           listmethod=c('combine','last'),missingLevelsEquiv=c()){
+  stopifnot(is.atomic(xx))
+  if(length(xx)==1) return(xx);
+  if(all(is.na(xx))) return(NA);
+  tfmethod<-match.arg(tfmethod);
+  if(is.logical(xx)) {
+    out <- switch(tfmethod,
+                  any=any(xx,na.rm = T),
+                  last=tail(na.omit(xx),1));
+    if(length(out)<1) return(NA) else return(out[1]);
+  }
+  if(!is.atomic(xx)) {
+    listmethod<-match.arg(listmethod);
+    if(all(missing <- sapply(xx,missingLike))) return(NA);
+    nonmissing <- seq_along(missing)[!missing];
+    out <- switch(listmethod,
+                  combine=xx[nonmissing],
+                  last=xx[tail(nonmissing,1)]);
+    return(out);
+  }
+  # made this check optional because I suspect it's sloooow
+  if(length(missingLevelsEquiv)>0) {
+    if(length(intersect(toupper(missingLevelsEquiv),toupper(levels(factor(xx)))))>0){
+      return(switch(tfmethod,any=any(toupper(na.omit(xx))!='FALSE'),
+                    last=tail(na.omit(xx),1)));
+    }
+  }
+  out<-last(na.omit(xx)); if(length(out)<1) return(NA) else return(out);
+}
+
+#' For data.frame `data` and column `name` (character) replace everything not 
+#' between lthresh and uthresh (numerics) with NA
+thresholdNA <- function(data, name, lthresh = -Inf, uthresh = Inf, envir){
+  data <- as.character(substitute(data));
+  if(missing(envir)) envir <- parent.frame();
+  envir[[data]][[name]] <- ifelse(between(rawvals <- envir[[data]][[name]], lthresh, uthresh), rawvals, NA);
+}
+
+#' Return an indicator variable for events meeting the 
+#' \code{selectfun} criterion or a series of ascending numbers ending at 
+#' each event and restarting afterward, or both.
+#' 
+#' @param data A \code{data.frame} (required).
+#' @param pattern A regular expression for identifying columns on which to run the test.
+#' @param cnames If \code{pattern} is omitted, must be a vector of column names from the \code{data.frame}.
+#' @param selectfun A function that operates on a vector and returns a single boolean value.
+#' @param result What to return: ascending event-IDs, boolean indicators, or both (default).
+#' @param returnDF Should the selected result be returned as part of the original \code{data.frame} (TRUE, default) or by itself?
+findEvents <- function(data,pattern,
+                       cnames=lazygrep(pattern,data),
+                       selectfun=function(xx) !all(is.na(xx)),
+                       result=c('ids','indicators'),
+                       groupby=NA,
+                       returnDF=TRUE){
+  stopifnot(is.data.frame(data));
+  indicators <- apply(data[,cnames,drop=F],1,selectfun);
+  # modified cumsum, from c(0,cumsum(indicators))[1:length(indicators)];
+  ids <- cumsum(indicators)+1;
+  out <- data.frame(indicators,ids);
+  if(!is.na(groupby)) {
+    out$groupids <- paste(data[,groupby],ids,sep=':');
+    result <- c(result,'groupids');
+  }
+  if(returnDF) return(cbind(data,out[,result,drop=F]));
+  return(out[,result]);
+}
+
+lazygrep <- function(pattlist,target,invert=F){
+  stopifnot(is.character(pattlist),is.character(target)||is.data.frame(target));
+  if(is.data.frame(target)) target <- names(target);
+  grep(paste0(pattlist,collapse='|'),target,val=T,invert=invert);
+}
+
+#' Find 1st ocurrence where \code{expr} returns \code{TRUE} (i.e. the event) and 
+#' obtain the following vectors: \code{time} (time elapsed since first time, 
+#' i.e. the smallest value of \code{timevar} subtracted from the rest), 
+#' \code{tevent} (time centered on the event, so that it is a negative value 
+#' before and a positive value afterward), and \code{event} (0 before event, 1
+#' during event, and 2 after the event).
+#' Note: sorts the data by the timevar
+#' Note: for some reason blows away the NA levels of factors that have them
+#' @param data A \code{data.frame} (required)
+#' @param expr An expression that will be evaluated in the scope of \code{data} (required)
+#' @param timevar An atomic \code{character} vector with the name of the column in \code{data} that will be treated as the time variable. Should be of a data-type that supports subtraction. Default: 'age_at_visit_days'
+#' @param result A \code{character} vector of what results to return. One or more of \code{time}, \code{tevent}, or \code{event}
+#' @param returnDF Should the selected result be returned as part of the original \code{data.frame} (TRUE, default) or by itself?
+beforeAfter <- function(data,expr,
+                        timevar='age_at_visit_days',insureOrder=F,
+                        result=c('time','tevent','event','tstart','ev','tcount','hasevent'),
+                        returnDF=TRUE){
+  # check for valid input and while at it, create the tt time variable for internal use
+  stopifnot(is.data.frame(data)&&is.atomic(timevar)&&!is.null(tt<-data[[timevar]]));
+  result <- match.arg(result,several.ok = T);
+  expr <- substitute(expr); expr; 
+  # order the data in chronological order, in case this isn't already done
+  if(insureOrder) {data <- data[order(tt),]; tt <- sort(tt);}
+  # the double eval is in case somebody tries to pass a call or name
+  # *object* rather than an unevaluated argument. In that case the 
+  # inner eval expands that object into an expression and the outer
+  # one evaluates the expression (and otherwise it is just a null op)
+  tstart <- min(tt); time <- tt-tstart; tcount <- length(time);
+  ev <- match(T,eval(eval(expr,envir=data),envir=data));
+  if(is.na(ev)){
+    event <- 0; tevent <- time-max(time); hasevent <- F;
+  } else {
+    event <- c(rep(0,ev-1),1,rep(2,length(tt)-ev));
+    tevent <- time - time[ev];
+    hasevent <- T;
+  }
+  out <- data.frame(time,tevent,event,tstart,ev,tcount,hasevent)[,result];
+  if(!returnDF) return(out);
+  data[,result]<-out;
+  data;
+}
+
+#' Parse \code{data} a vector of character variables in JSON format and return 
+#' a vector of list objects.
+#' @param data A character vector in JSON format.
+jsonParse <- function(xx,encl=c('[',']'),...){
+  # TODO: error checking to make sure it's actually JSON
+  # Lazy way to create a vectorized JSON parser
+  jpfn <- Vectorize(fromJSON,USE.NAMES=F);
+  # Now use it, after catching missing values
+  jpfn(paste0(encl[1],ifelse(is.na(xx),'null',as.character(xx)),encl[2]));
+}
+
+#' Iterate over a list of lists and from each list extract the element named by
+#'\code{item} if it exists. Each result can be a vector. Return a vector or list.
+#' @param xx List of lists, each itself containing at least one list-like object
+#' @param item Character vector of length 1 saying what attribute to try to extract from each sub object of each list of \code{xx}
+#' @param type If more than one sub-lists contain the attribute named by \code{item}, what to do? \code{last} (default) and \code{first} guarantee single-value per cell output. \code{unique} returns unique values and \code{all} returns all values.
+dfListExtract <- function(xx,item,type=c('last','first','unique','all')){
+  fn <- switch(match.arg(type),
+               last = function(xx) tail(xx,1),
+               first = function(xx) head(xx,1),
+               unique = unique,
+               all = identity
+               );
+  sapply(xx,function(yy) {
+    out <-fn(unlist(lapply(yy,`[[`,item)));
+    ifelse(is.null(out),NA,out);
+    });
+}
+
+missingLike <- function(xx,tests=alist(
+  is.null(xx),
+  is.logical(xx)&&!any(xx,na.rm=T),
+  all(xx %in% c('FALSE',NA)),
+  all(xx %in% c('N',NA)),
+  all(xx %in% c('',NA)),
+  all(xx %in% c(NA,0)),
+  is.null(unlist(xx)),
+  all(is.na(unlist(xx))),
+  length(unique(xx))<2
+)){
+  for(ii in tests) if(eval(ii)) return(TRUE);
+  return(FALSE);
+}
+
+nonmissingLike <- function(xx,na.equivs=c('FALSE')){
+  return(switch(mode(xx),
+         logical=!is.na(xx)&xx,
+         numeric=!is.na(xx)&xx!=0,
+         factor=!is.na(xx)&!xx%in%na.equivs,
+         list=sapply(xx,function(yy) {!is.null(oo<-unlist(yy))&&any(!is.na(oo))}),
+         !is.na(xx)
+         ));
+}
+
+countNonMissing <- function(data,mask=sapply(data,missfn),missfn=nonmissingLike,
+                            exclude=c('patient_num')){
+  stopifnot(is.logical(mask)||is.data.frame(mask),is.character(exclude)||is.null(exclude));
+  # number non-missing
+  lr <- nrow(mask); if(is.null(lr)||lr==1){
+    mask <- unlist(mask)+0;
+    return(data.frame(NonMissing=mask,Complete=mask));
+  }
+  cs <- colSums(mask,na.rm=T);
+  # total number of variables and observations
+  ll <- length(cs);
+  # number of complete cases
+  cc <- rep(0,ll); names(cc) <- names(cs)[ss<-order(cs,decreasing = T)];
+  exclude <- union(exclude,names(cs)[cs==lr]);
+  # number of cases with at least one non-missing
+  ca <- cc; cainc <- ca[!names(ca) %in% exclude];
+  for(ii in seq_len(ll)){
+    if(ii==1||cc[ii-1]>0) cc[ii] <- sum(apply(mask[,names(cc)[seq_len(ii)],drop=F],1,all))
+    else break;
+  }
+  for(ii in seq_along(cainc)){
+    if(ii==1||cainc[ii-1]>0) cainc[ii] <- sum(apply(mask[,names(cainc)[seq_len(ii)],drop=F],1,any))
+    else break;
+  }
+  ca[names(cainc)] <- cainc; ca[intersect(names(ca),exclude)] <- NA;
+  return(data.frame(NonMissing=cs,Complete=cc[order(ss)]));
+}
+
+deflateReport <- function(data,include=names(data),exclude=c(),spliton='patient_num',
+                      sumThresh=3,meanThresh=0,
+                      sumSplThresh=sumThresh,meanSplThresh=meanThresh,
+                      droprows=T,output=c('report','df')){
+  stopifnot(is.data.frame(data),is.character(include)||is.numeric(include)||is.logical(include));
+  output <- match.arg(output,several.ok = T);
+  mask <- sapply(data,nonmissingLike);
+  exclude <- union(setdiff(names(data),include),exclude);
+  rep <- countNonMissing(mask=mask,exclude=exclude);
+  rep <- cbind(rep,setNames(rep/nrow(data),paste0('Frac_',names(rep))));
+  if(!is.na(spliton)&&spliton%in%names(data)){
+    data.frame(mask) %>% 
+      split(data[[spliton]]) %>% 
+      lapply(function(xx) countNonMissing(mask=xx,exclude=exclude)) -> spmask;
+    lapply(spmask,function(xx) xx$Complete > sumSplThresh) %>% bind_rows %>% rowSums -> spcmp;
+    lapply(spmask,function(xx) xx$NonMissing > sumSplThresh) %>% bind_rows %>% rowSums -> spnm;
+    lx <- length(spmask);
+    sprep <- data.frame(HaveCompleteCases=spcmp,HaveEnoughData=spnm);
+    sprep <- cbind(sprep,setNames(sprep/lx,paste0('Frac_',names(sprep))));
+    rep <- cbind(rep,sprep);
+  }
+  return(rep);
+  # cols <- intersect(names(data),setdiff(include,exclude));
+  # rowkeep <- if(droprows) rowSums(mask[,cols])>0 else T;
+  # dflmask <- mask[rowkeep,];
+  # rep <- data.frame(allsums=colSums(dflmask,na.rm = T),allmeans=colMeans(dflmask,na.rm = T));
+  # ll <- nrow(rep);
+  # colkeep <- rep$allsums > sumThresh & rep$allmeans > meanThresh;
+  # if(output=='report') return(rep);
+  # if('df'%in%output){
+  #   # deflate the dataframe
+  #   data <- data[rowkeep,colkeep]; 
+  #   if(output=='df') return(data);
+  #   rep <- rep[colkeep,];
+  #   return(list(data=data,report=rep));
+  # }
+}
+
+#'
+eventPlot <- function(data,time='tevent',series='patient_num',pch='|',col='black',
+                      cex=.5,xlim=c(),event.x=0,event.col='red',event.lwd=2,
+                      series.y=as.numeric(factor(data[[series]])),series.col='gray',series.lwd=1,
+                      time.x=data[[time]],time.by=365.25,time.col='gray',time.lwd=1,
+                      add=F,offset=0){
+  time.tx <- unique(time.x); series.tx <- unique(series.y);
+  if(!add){
+    # blank plot
+    plot(ylim=c(0,max(series.tx)*1.1),xlim=range(time.tx),type='n');
+    # x gridlines, years by default
+    abline(v=seq(min(time.tx),max(time.tx),by=time.by),col=time.col,lwd=time.lwd);
+    # y gridlines, e.g. patients
+    abline(h=series.tx,col=series.col,lwd=series.lwd);
+    # the event line
+    abline(v=event.x,col=event.col,lwd=event.lwd);
+    
+  } 
+  points(I(offset+series.y)~time.x,pch=pch,col=col,cex=cex);
+}
+
+#' Take a vector of codes, sometimes more than one that are comma separated
+#' Find all unique codes, and return a \code{data.frame} with a column of T/F
+#' values for each code.
+splitCodes <- function(xx,prefix='code_',...){
+  # converts a string to factor and if already a factor trims off unused levels  
+  xx <- factor(xx); 
+  # find unique codes
+  codes <- sort(unique(unlist(strsplit(levels(xx),','))));
+  out <- data.frame(sapply(trimws(codes),
+                           #function(yy) factor(grepl(paste0('\\b',yy,'\\b'),as.character(xx))),simplify=F));
+                           function(yy) grepl(paste0('\\b',yy,'\\b'),as.character(xx)),simplify=F));
+  names(out) <- gsub('^X',prefix,names(out));
+  out;
+}
+
+#' Take a factor and a named vector of regexps, evaluate the
+#' vector in the order given, and replace the matching levels
+#' of the factor with the names of the corresponding regexps
+#' Collapse all non-matching levels to 'N'
+#' The defaults are currently for extracting valueflag info
+mapLevels <- function(xx,
+                      map=c(LH="'vf':\\['H'\\].*'vf':\\['L'\\]|'vf':\\['L'\\].*'vf':\\['H'\\]",
+                            L="'vf':\\['L'\\]",
+                            H="'vf':\\['H'\\]"),
+                      other='N',exclude=NULL,...){
+  xx <- factor(xx,exclude=exclude);
+  stopifnot(is.character(map),is.character(other));
+  nm <- names(map);
+  if(length(unique(nm))<length(map)) {
+    nm<-names(map)<-make_names(seq_along(map));
+  }
+  lv<-levels(xx);
+  for(ii in nm) lv[grepl(map[ii],lv)] <- ii;
+  lv[!grepl(paste0('^',nm,'$',collapse='|'),lv)]<-other;
+  unused <- setdiff(c(names(map),other),levels(xx) <- lv);
+  if(length(unused)>0) levels(xx) <- c(levels(xx),unused);
+  xx;
+}
+
+#' Interactive reporting tool. The idea is to quickly review a large number
+#' of automatically generated plots. Definitely too much hardcoding to the 
+#' units and valueflags current case, but it's a start.
+feedbackOMatic <- function(index,logobj,xpr,env=parent.frame(),...){
+  lgo <-as.character(substitute(logobj));
+  xpr <- substitute(xpr);
+  if(is.null(env[[lgo]])) env[[lgo]]<-list();
+  stopifnot(is.recursive(env[[lgo]]),is.atomic(index));
+  env[[lgo]][[index]]<-list();
+  env[['.vs']]<-origvars<-list(log=F,lim=NA);
+  q1 <- q2 <- 0;
+  while(trimws(q1)!=""){
+    cat('If there are outliers preventing you from seeing the 
+distribution, please type the number at which you would
+like the corresponding scale to be cut off. Type "log"
+to toggle log scale and reset to remove cutoffs. Hit 
+carriage return to accept scaling and move on.
+');
+    eval(xpr);
+    q1 <- readline('log, reset, or a numeric value. Blank line to move on: ');
+    if(trimws(tolower(q1))=='log') {
+      env[['.vs']][['log']] <- !env[['.vs']][['log']];
+      env[['.vs']][['lim']] <- NA;
+    } else {
+      print('not log case');
+      if(trimws(tolower(q1))=='reset'){
+        env[['.vs']] <- origvars
+      } else {
+        if(!is.na(q1a<-as.numeric(q1))) {
+          env[['.vs']][['lim']]<-q1a;
+        }
+      }
+    }
+    #print(env[['.vs']]);
+  }
+  env[[lgo]][[index]]$q1<-env[['.vs']];
+  while(trimws(q2)!=""){
+    cat('
+Do some levels have negligible numers of values? Type 
+their names each on a separate line and input an empty 
+carriage return when you are done. 
+');
+    q2 <- readline('Name of group, blank line to move on: ');
+    env[[lgo]][[index]]$q2 <- c(env[[lgo]][[index]]$q2,q2);
+  }
+  cat('
+If the distributions are not roughly similar, please type "y" 
+with an optional explanation. Otherwise send an empty carriage
+return.
+');
+  env[[lgo]][[index]]$q3 <- readline('y or comment or blank line: ');
+  #print(env[[lgo]][[index]]);
+}
+
+discrOrCont <- function(xx,uniquelim=4,toplim=.9){
+  stopifnot(!is.null(xx),is.atomic(xx));
+  if(!(is.numeric(xx)||'Date'%in%class(xx))) return(1) else return(2);
+  #if(length(lu<-unique(xx))<uniquelim ||
+  #   sum(sort(table(xx,exclude = NULL),decr=T)[1:(uniquelim-1)])/length(xx)>toplim ||
+  #   !(is.numeric(xx)||'Date'%in%class(xx))) return(1) else return(2);
+}
+
+#' Determine which of a pair of vectors is discrete or continuous
+types<-function(xx,yy,...){
+  stopifnot(!(missing(xx)&&missing(yy)),!(is.null(xx)&&is.null(yy)),is.atomic(xx)||is.atomic(yy));
+  if(!missing(yy)&&is.atomic(yy)&&!is.null(yy)) out <- discrOrCont(yy) else {
+    return(discrOrCont(xx));
+  }
+  if(length(xx)==length(yy)&&identical(xx,yy)) return(out);
+  return(10*discrOrCont(xx)+out);
+}
+
+uniplot <- function(xx,yy=NULL,tt=types(xx,yy),col,fill,shape,lty,lwd,alpha,grp,
+                    xlim=c(),ylim=c()){
+  if(tt%in%c(11,21)) yy<-factor(yy);
+  if(tt%in%c(1,11,12)) xx<-factor(xx);
+  gg <- ggplot(,aes(xx)) + coord_cartesian(xlim=xlim,ylim=ylim);
+  if(tt>11) gg$mapping$y <- quote(yy);
+  s_col<-s_shp<-s_lty<-s_lwd<-s_alp<-s_grp<-fll<-NA;
+  if(!missing(col)){
+    if(length(col)==length(xx)) gg$mapping$colour<-quote(col) else {
+      s_col<-col[1]}}
+  if(!missing(grp)){
+    if(length(grp)==length(xx)) gg$mapping$group<-quote(grp) else {
+      s_grp<-grp[1]}}
+  if(tt%in%1:2) gg$mapping$y <- NULL;
+  lyr <- switch(as.character(tt),
+         `1`=geom_bar(),
+         `2`=geom_density(),
+         `11`=geom_bar(aes(fill=yy),position='stack'),
+         `12`=geom_boxplot(),
+         `21`={gg$mapping[c('x','y')]<-gg$mapping[c('y','x')];
+         gg<-gg+coord_flip(xlim=ylim,ylim=xlim);
+         geom_boxplot();},
+         `22`=geom_point()
+         )
+  gg + lyr;
+}
