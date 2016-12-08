@@ -15,17 +15,33 @@ require("ggplot2");
 require('psy');
 source("helpers.R");
 
+#' The name of the saved session file
+sessionfile <- 'allo_session.rdata';
+load(sessionfile);
+
+if(!exists('csv2load')){
+csv2load<-list(
+  mapfc='finclass_codes.csv',  # mapping financial classes to readable names
+  mapen='enctypes.csv',        # mapping encounter type codes to readable names
+  mapsp='specialty_codes.csv', # mapping specialty codes to readable names
+  dfraw='allo_05_combined.csv' # raw data
+);
+}
+
 #' Lookup tables
-mapfc <- read_csv('finclass_codes.csv', na = c("", "(null)"));
-mapen <- read_csv('enctypes.csv', na = c("", "(null)"));
-mapsp <- read_csv('specialty_codes.csv', na = c("", "(null)"));
+for(ii in setdiff(names(csv2load),ls())) assign(ii,read_csv(
+  csv2load[[ii]],na=c('','(null)'),locale = locale(date_format="%m/%d/%y")));
+
+# mapfc <- read_csv('finclass_codes.csv', na = c("", "(null)"));
+# mapen <- read_csv('enctypes.csv', na = c("", "(null)"));
+# mapsp <- read_csv('specialty_codes.csv', na = c("", "(null)"));
 
 #' # Set session variables
 #' Whether to do interactive diagnostic plots for units and valueflags, 
 #' respectively
 plotunits <- F; plotvfs <- F;
 #' The name of the raw data file
-datafile <- 'allo_05_combined.csv';
+#datafile <- 'allo_05_combined.csv';
 #' Minimum number of non-missing values to remain in dataset
 minnm <- 4;
 #' Minimum number of visits for below which the specialty, enctype, or financial 
@@ -439,10 +455,11 @@ df4 <- df3[df3[[df0cls$patid]]%in%c(trset,trsetctr),];
 df4$smplwt <- ifelse(is.na(df4$ev),ctrtrwt,1);
 
 #' This version will be for complete case
-df4[,with(df0cls,c('tstart',safevitals,safelabs))] <- apply(df4[,with(df0cls,c('tstart',safevitals,safelabs))],2,scale);
-df4[,with(df0cls,c(safevitals,safelabs))] %>% na.omit %>% rownames %>% `[`(df4,.,) -> df4cc;
+df4[,with(df0cls,c('tstart',safevitals,safelabs))] <- apply(df4[,with(
+  df0cls,c('tstart',safevitals,safelabs))],2,scale);
+df4[,with(df0cls,c(safevitals,safelabs))] %>% na.omit %>% 
+  rownames %>% `[`(df4,.,) -> df4cc;
 
-#df4cc <- df4[rownames(na.omit(df4[,with(df0cls,c(safelabs,safevitals))])),];
 #' Visualize multi-collinearity
 #sphpca(data.frame(df4[,with(df0cls,c(safevitals,safelabs))]));
 # heatmap
@@ -547,12 +564,15 @@ lines(survfit(
     quantile(df4$tstart,(0:2)/2),include.lowest = T),
   df4),conf.int=F,col=1:2,mark.time = T);
 
-legend('topright',legend=c('Younger','Older'),col=c('red','black'),pch=1,bty='n',cex=1);
+#legend('topright',legend=c('Younger','Older'),col=c('red','black'),pch=1,bty='n',cex=1);
 # 
 #' Take this with a huge grain of salt, though. We still need to add in the healthy
 #' patients of comparable age at first visit and comparable distribution of health 
 #' history lengths who so far never developed PC.
-
+#' 
+#' Let's save this session environment-- it's starting to take longer and longer 
+#' to run this script otherwise.
+save.image('allo_session.rdata');
 
 #' To select an age-balanced healthy sample from dataset bar we would do...
 #split(bar,cut(bar$tstart,df2quants,include.lowest = T)) %>% 
