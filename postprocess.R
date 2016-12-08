@@ -241,7 +241,7 @@ df0cls$pcp <- grep(rxp$pcp,df0cls$Prvdr_Spclt,val=T);
 #' it if it does.
 #' 
 #' So, currently the minimum number of non-missing values cutoff (`minnm`) is 
-#' `r minnm` and the "always keep" columns (`vars_keep`) are `r vars_keep`. At any time,
+#' `r minnm` and the "always keep" columns (`vars_keep`) are 'r vars_keep'. At any time,
 #' we can go back up to the `Set session variables` section, change these values
 #' and re-run this script.
 #' 
@@ -504,8 +504,8 @@ rpall <- deflateReport(df3);
 #' * Naive approach: at least 40 patients w/ >=3 complete cases
 #' * Interpolation/Imputation: at least 40 patients w/ >=3 ocurrences of variable
 #' * Score: base that on manual review of vf plots
-df0cls$casecomp <- setdiff(rownames(subset(df4rpt,HaveCompleteCases>=20)),c(df0cls$nonanalytic));
-# df0cls$imputable <- setdiff(rownames(subset(df4rpt,HaveEnoughData>40)),c(df0cls$nonanalytic));
+df0cls$casecomp <- setdiff(rownames(subset(rp,HaveCompleteCases>=20)),c(df0cls$nonanalytic));
+df0cls$imputable <- setdiff(rownames(subset(rp,HaveEnoughData>40)),c(df0cls$nonanalytic));
 
 #' How many case-complete observations actually remain?
 #nrow(na.omit(df3[,df0cls$casecomp]));
@@ -518,23 +518,35 @@ length(unique(na.omit(df3[,df0cls$casecomp])[[df0cls$patid]]));
 #' 
 #' If we are willing to impute/interpolate up to 80% of the missing data, we can
 #' use this:
-df4_imputable <- df3[,with(df0cls,c(global,vitals,diags,smoking,
-                                     'time','tevent','event','tstart',
-                                     'v039_Ethnct',
-                                     intersect(lab,imputable)))];
-#' If we do only complete cases, we need to use fewer missing variables and should
-#' use this:
-df4_casecomp <- df3[,with(df0cls,c(global,vitals,diags,smoking,
-                                   'time','tevent','event','tstart',
-                                   'v039_Ethnct',
-                                   intersect(lab,casecomp)))];
+#' df4_imputable <- df4[,with(df0cls,c(global,vitals,diags,smoking,
+#'                                      'time','tevent','event','tstart',
+#'                                      'v039_Ethnct',
+#'                                      intersect(lab,imputable)))];
+#' #' If we do only complete cases, we need to use fewer missing variables and should
+#' #' use this:
+#' df4_casecomp <- df3[,with(df0cls,c(global,vitals,diags,smoking,
+#'                                    'time','tevent','event','tstart',
+#'                                    'v039_Ethnct',
+#'                                    intersect(lab,casecomp)))];
 #' # Now watch, our first visualization of actual data. 
 #' 
-#' Risk of PC diagnosis for patients in the older half of the set
-#' versus patients in the younger half.
-plot(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)>=0&event==1),
-     las=2,xlab='Days Since First Visit',main='PC Diagnosis Rate',bty='n',lwd=2)
-lines(survfit(Surv(time)~1,df4_casecomp,subset=scale(tstart)<0&event==1),col='red',lwd=2)
+#' Risk of PC diagnosis for patients split by quartiles of age at first
+#' visit. Complete cases only.
+plot(survfit(
+  Surv(time,event)~cut(
+    df4sc$tstart,
+    quantile(df4sc$tstart,(0:4)/4),
+    include.lowest = T),
+  df4sc),las=2,bty='n',ylim=c(.5,1),
+  xlab='Days Since First Visit',
+  main='PC Diagnosis Rate',conf.int = 'both');
+
+lines(survfit(
+  Surv(time,event)~cut(
+    df4$tstart,
+    quantile(df4$tstart,(0:2)/2),include.lowest = T),
+  df4),conf.int=F,col=1:2,mark.time = T);
+
 legend('topright',legend=c('Younger','Older'),col=c('red','black'),pch=1,bty='n',cex=1);
 # 
 #' Take this with a huge grain of salt, though. We still need to add in the healthy
